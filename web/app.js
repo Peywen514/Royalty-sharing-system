@@ -1902,27 +1902,27 @@ function buildInvoiceDocHtml(inv) {
       </thead>
       <tbody>
         <tr>
-          <td rowspan="4" style="text-align: center; vertical-align: middle;">
+          <td rowspan="3" style="text-align: center; vertical-align: middle;">
             <span class="invoice-checkbox">☐</span>已入帳
           </td>
-          <td rowspan="4" style="text-align: center; vertical-align: middle; color: #475569; letter-spacing: 2px; white-space: nowrap;">
+          <td rowspan="3" style="text-align: center; vertical-align: middle; color: #475569; letter-spacing: 2px; white-space: nowrap;">
             &nbsp;&nbsp;&nbsp;&nbsp;年&nbsp;&nbsp;&nbsp;&nbsp;月&nbsp;&nbsp;&nbsp;&nbsp;日
           </td>
-          <td rowspan="2" style="text-align: center; font-weight: bold; vertical-align: middle;">1</td>
-          <td style="padding: 5px 8px; line-height: 1.6; white-space: nowrap; border-bottom: 1px dashed #111827 !important;">
-            <span class="invoice-checkbox">☐</span>合庫北&nbsp;&nbsp;
-            <span class="invoice-checkbox">☐</span>合庫中&nbsp;&nbsp;
-            <span class="invoice-checkbox">☐</span>合庫南&nbsp;&nbsp;
-            <span class="invoice-checkbox">☐</span>合庫 CWT&nbsp;&nbsp;
-            <span class="invoice-checkbox">☐</span>合庫 6922
-          </td>
-        </tr>
-        <tr>
-          <td style="padding: 5px 8px; line-height: 1.6; white-space: nowrap; border-top: 1px dashed #111827 !important;">
-            <span class="invoice-checkbox" style="font-weight: bold;">☒</span><strong>一銀</strong>&nbsp;&nbsp;
-            <span class="invoice-checkbox">☐</span>國泰世華&nbsp;&nbsp;
-            <span class="invoice-checkbox">☐</span>現金&nbsp;&nbsp;
-            <span class="invoice-checkbox">☐</span>支票
+          <td style="text-align: center; font-weight: bold; vertical-align: middle;">1</td>
+          <td style="padding: 5px 8px; line-height: 1.7; white-space: nowrap;">
+            <div>
+              <span class="invoice-checkbox">☐</span>合庫北&nbsp;&nbsp;
+              <span class="invoice-checkbox">☐</span>合庫中&nbsp;&nbsp;
+              <span class="invoice-checkbox">☐</span>合庫南&nbsp;&nbsp;
+              <span class="invoice-checkbox">☐</span>合庫 CWT&nbsp;&nbsp;
+              <span class="invoice-checkbox">☐</span>合庫 6922
+            </div>
+            <div style="margin-top: 3px;">
+              <span class="invoice-checkbox" style="font-weight: bold;">☒</span><strong>一銀</strong>&nbsp;&nbsp;
+              <span class="invoice-checkbox">☐</span>國泰世華&nbsp;&nbsp;
+              <span class="invoice-checkbox">☐</span>現金&nbsp;&nbsp;
+              <span class="invoice-checkbox">☐</span>支票
+            </div>
           </td>
         </tr>
         <tr>
