@@ -607,6 +607,9 @@ body {
 .borderless-grid-table, .borderless-grid-table td {
   border: none !important;
 }
+.dashed-table, .dashed-table th, .dashed-table td {
+  border: 1px dashed #111827 !important;
+}
 .invoice-notes {
   font-size: 8.5pt;
   color: #1f2937;

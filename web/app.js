@@ -1681,6 +1681,7 @@ function confirmPrintCurrentDoc() {
         .invoice-doc-table th { background-color: #f5f5f5 !important; text-align: center; font-weight: bold; }
         .invoice-doc-table td.no-padding { padding: 4px 6px !important; }
         .borderless-grid-table, .borderless-grid-table td { border: none !important; }
+        .dashed-table, .dashed-table th, .dashed-table td { border: 1px dashed #000 !important; }
         .invoice-checkbox { font-weight: bold; font-size: 11pt; margin-right: 2px; }
         .invoice-notes { font-size: 8.5pt; color: #111; line-height: 1.5; margin-top: 10px; }
         
@@ -1825,18 +1826,20 @@ function buildInvoiceDocHtml(inv) {
         <td style="font-weight: bold; font-size: 11pt; color: #0f172a; text-align: left; padding-left: 12px;">${amountStr}</td>
       </tr>
       <tr>
-        <th rowspan="2">種類</th>
-        <td colspan="2">
-          <span class="invoice-checkbox">☒</span>發票：&nbsp;&nbsp;
-          <span class="invoice-checkbox">☒</span><strong>有統編，請填統編：${inv.tax_id}</strong>
-        </td>
-        <td>
-          <span class="invoice-checkbox">☐</span>無統編
-        </td>
-      </tr>
-      <tr>
-        <td colspan="3">
-          <span class="invoice-checkbox">☐</span>收據 (限測驗、換證、成績複查)
+        <th>種類</th>
+        <td colspan="3" style="padding: 6px 10px; line-height: 1.8;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <span class="invoice-checkbox">☒</span>發票：&nbsp;&nbsp;
+              <span class="invoice-checkbox">☒</span><strong>有統編，請填統編：${inv.tax_id}</strong>
+            </div>
+            <div style="padding-right: 30px;">
+              <span class="invoice-checkbox">☐</span>無統編
+            </div>
+          </div>
+          <div style="margin-top: 4px;">
+            <span class="invoice-checkbox">☐</span>收據 (限測驗、換證、成績複查)
+          </div>
         </td>
       </tr>
       <tr>
@@ -1906,7 +1909,7 @@ function buildInvoiceDocHtml(inv) {
             &nbsp;&nbsp;&nbsp;&nbsp;年&nbsp;&nbsp;&nbsp;&nbsp;月&nbsp;&nbsp;&nbsp;&nbsp;日
           </td>
           <td rowspan="2" style="text-align: center; font-weight: bold; vertical-align: middle;">1</td>
-          <td style="padding: 5px 8px; line-height: 1.6; white-space: nowrap;">
+          <td style="padding: 5px 8px; line-height: 1.6; white-space: nowrap; border-bottom: 1px dashed #111827 !important;">
             <span class="invoice-checkbox">☐</span>合庫北&nbsp;&nbsp;
             <span class="invoice-checkbox">☐</span>合庫中&nbsp;&nbsp;
             <span class="invoice-checkbox">☐</span>合庫南&nbsp;&nbsp;
@@ -1915,7 +1918,7 @@ function buildInvoiceDocHtml(inv) {
           </td>
         </tr>
         <tr>
-          <td style="padding: 5px 8px; line-height: 1.6; white-space: nowrap;">
+          <td style="padding: 5px 8px; line-height: 1.6; white-space: nowrap; border-top: 1px dashed #111827 !important;">
             <span class="invoice-checkbox" style="font-weight: bold;">☒</span><strong>一銀</strong>&nbsp;&nbsp;
             <span class="invoice-checkbox">☐</span>國泰世華&nbsp;&nbsp;
             <span class="invoice-checkbox">☐</span>現金&nbsp;&nbsp;
@@ -1967,20 +1970,22 @@ function buildInvoiceDocHtml(inv) {
     </table>
 
     <div style="font-weight: bold; margin-bottom: 4px; font-size: 10pt; color: #111;">5. 開立</div>
-    <table class="invoice-doc-table">
+    <table class="invoice-doc-table dashed-table">
       <colgroup>
-        <col style="width: 18%;">
-        <col style="width: 22%;">
-        <col style="width: 18%;">
-        <col style="width: 22%;">
-        <col style="width: 20%;">
+        <col style="width: 15%;">
+        <col style="width: 21%;">
+        <col style="width: 12%;">
+        <col style="width: 21%;">
+        <col style="width: 12%;">
+        <col style="width: 19%;">
       </colgroup>
       <tr>
-        <th>發票收據號碼</th>
-        <td>&nbsp;</td>
-        <th>收款確認</th>
-        <td>&nbsp;</td>
-        <th style="text-align: center;">會計 / 出納</th>
+        <th style="border: 1px dashed #111827 !important; height: 26px;">發票收據號碼</th>
+        <td style="border: 1px dashed #111827 !important;">&nbsp;</td>
+        <th style="border: 1px dashed #111827 !important;">收款確認</th>
+        <td style="border: 1px dashed #111827 !important;">&nbsp;</td>
+        <th style="border: 1px dashed #111827 !important; text-align: center;">會計 / 出納</th>
+        <td style="border: 1px dashed #111827 !important;">&nbsp;</td>
       </tr>
     </table>
 
