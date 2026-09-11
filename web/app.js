@@ -1801,7 +1801,9 @@ function buildInvoiceDocHtml(inv) {
       <tr>
         <th>檢附相關文件</th>
         <td colspan="3">
-          契約　報價單　<span class="invoice-checkbox">☑</span><strong>其他：分潤明細</strong>
+          <span class="invoice-checkbox">☐</span>契約&nbsp;&nbsp;&nbsp;&nbsp;
+          <span class="invoice-checkbox">☐</span>報價單&nbsp;&nbsp;&nbsp;&nbsp;
+          <span class="invoice-checkbox">☒</span><strong>其他：分潤明細</strong>
         </td>
       </tr>
     </table>
@@ -1809,14 +1811,14 @@ function buildInvoiceDocHtml(inv) {
     <div style="font-weight: bold; margin-bottom: 4px; font-size: 10pt; color: #111;">2. 開立資料及種類</div>
     <table class="invoice-doc-table">
       <colgroup>
-        <col style="width: 10%;">
-        <col style="width: 15%;">
         <col style="width: 12%;">
-        <col style="width: 15%;">
-        <col style="width: 12%;">
-        <col style="width: 12%;">
-        <col style="width: 12%;">
-        <col style="width: 12%;">
+        <col style="width: 18%;">
+        <col style="width: 17%;">
+        <col style="width: 17%;">
+        <col style="width: 17%;">
+        <col style="width: 6%;">
+        <col style="width: 6%;">
+        <col style="width: 7%;">
       </colgroup>
       <tr>
         <th>抬頭</th>
@@ -1841,24 +1843,24 @@ function buildInvoiceDocHtml(inv) {
       </tr>
       <tr>
         <th rowspan="3">收入</th>
-        <td><span class="invoice-checkbox">☐</span>版稅收入</td>
-        <td><span class="invoice-checkbox">☐</span>授權收入</td>
-        <td><span class="invoice-checkbox">☐</span>會員收入</td>
-        <td><span class="invoice-checkbox">☐</span>專案收入</td>
-        <td colspan="3"><span class="invoice-checkbox">☐</span>書籍收入</td>
+        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>版稅收入</td>
+        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>授權收入</td>
+        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>會員收入</td>
+        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>專案收入</td>
+        <td colspan="3" style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>書籍收入</td>
       </tr>
       <tr>
-        <td><span class="invoice-checkbox">☐</span>選務計票</td>
-        <td><span class="invoice-checkbox">☐</span>租金收入</td>
-        <td><span class="invoice-checkbox">☐</span>排版收入</td>
-        <td><span class="invoice-checkbox">☐</span>展覽收入</td>
-        <td colspan="3"><span class="invoice-checkbox">☐</span>研習收入</td>
+        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>選務計票</td>
+        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>租金收入</td>
+        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>排版收入</td>
+        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>展覽收入</td>
+        <td colspan="3" style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>研習收入</td>
       </tr>
       <tr>
-        <td><span class="invoice-checkbox">☐</span>測驗收入</td>
-        <td><span class="invoice-checkbox">☐</span>換證收入</td>
-        <td><span class="invoice-checkbox">☐</span>成績複查</td>
-        <td style="font-weight: bold;"><span class="invoice-checkbox">☒</span><strong>其他收入</strong></td>
+        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>測驗收入</td>
+        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>換證收入</td>
+        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>成績複查</td>
+        <td style="white-space: nowrap; font-weight: bold;"><span class="invoice-checkbox">☒</span><strong>其他收入</strong></td>
         <td colspan="3"></td>
       </tr>
       <tr>
@@ -1873,9 +1875,9 @@ function buildInvoiceDocHtml(inv) {
     <table class="invoice-doc-table">
       <colgroup>
         <col style="width: 14%;">
-        <col style="width: 26%;">
-        <col style="width: 6%;">
-        <col style="width: 54%;">
+        <col style="width: 20%;">
+        <col style="width: 5%;">
+        <col style="width: 61%;">
       </colgroup>
       <thead>
         <tr>
@@ -1889,11 +1891,11 @@ function buildInvoiceDocHtml(inv) {
           <td rowspan="4" style="text-align: center; vertical-align: middle;">
             <span class="invoice-checkbox">☐</span>已入帳
           </td>
-          <td rowspan="4" style="text-align: center; vertical-align: middle; color: #475569; letter-spacing: 2px;">
+          <td rowspan="4" style="text-align: center; vertical-align: middle; color: #475569; letter-spacing: 2px; white-space: nowrap;">
             &nbsp;&nbsp;&nbsp;&nbsp;年&nbsp;&nbsp;&nbsp;&nbsp;月&nbsp;&nbsp;&nbsp;&nbsp;日
           </td>
-          <td style="text-align: center; font-weight: bold; vertical-align: middle;">1</td>
-          <td style="padding: 4px 8px; line-height: 1.6;">
+          <td rowspan="2" style="text-align: center; font-weight: bold; vertical-align: middle;">1</td>
+          <td style="padding: 5px 8px; line-height: 1.6; white-space: nowrap;">
             <span class="invoice-checkbox">☐</span>合庫北&nbsp;&nbsp;
             <span class="invoice-checkbox">☐</span>合庫中&nbsp;&nbsp;
             <span class="invoice-checkbox">☐</span>合庫南&nbsp;&nbsp;
@@ -1902,8 +1904,7 @@ function buildInvoiceDocHtml(inv) {
           </td>
         </tr>
         <tr>
-          <td style="text-align: center; font-weight: bold; vertical-align: middle;">1</td>
-          <td style="padding: 4px 8px; line-height: 1.6;">
+          <td style="padding: 5px 8px; line-height: 1.6; white-space: nowrap;">
             <span class="invoice-checkbox" style="font-weight: bold;">☒</span><strong>一銀</strong>&nbsp;&nbsp;
             <span class="invoice-checkbox">☐</span>國泰世華&nbsp;&nbsp;
             <span class="invoice-checkbox">☐</span>現金&nbsp;&nbsp;
@@ -1911,8 +1912,8 @@ function buildInvoiceDocHtml(inv) {
           </td>
         </tr>
         <tr>
-          <td style="text-align: center; font-weight: bold; vertical-align: middle;">2</td>
-          <td style="padding: 4px 8px; line-height: 1.6;">
+          <td rowspan="2" style="text-align: center; font-weight: bold; vertical-align: middle;">2</td>
+          <td style="padding: 5px 8px; line-height: 1.6; white-space: nowrap;">
             <span class="invoice-checkbox">☐</span>ATM&nbsp;&nbsp;
             <span class="invoice-checkbox">☐</span>信用卡&nbsp;&nbsp;
             <span class="invoice-checkbox">☐</span>IBON&nbsp;&nbsp;
@@ -1920,8 +1921,7 @@ function buildInvoiceDocHtml(inv) {
           </td>
         </tr>
         <tr>
-          <td style="text-align: center; font-weight: bold; vertical-align: middle;">2</td>
-          <td style="padding: 4px 8px; line-height: 1.6;">
+          <td style="padding: 5px 8px; line-height: 1.6;">
             虛擬帳號：<span style="display: inline-block; width: 140px; border-bottom: 1px dotted #94a3b8;">&nbsp;</span>
           </td>
         </tr>
@@ -1929,7 +1929,7 @@ function buildInvoiceDocHtml(inv) {
           <td style="text-align: center; vertical-align: middle; font-weight: bold;">
             <span class="invoice-checkbox">☒</span>未入帳
           </td>
-          <td style="text-align: center; font-weight: bold; color: #0f172a;">
+          <td style="text-align: center; font-weight: bold; color: #0f172a; white-space: nowrap;">
             ${depStr}
           </td>
           <td colspan="2" style="text-align: left; padding-left: 12px; color: #475569;">
