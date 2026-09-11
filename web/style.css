@@ -601,6 +601,12 @@ body {
   font-size: 11pt;
   margin-right: 2px;
 }
+.invoice-doc-table td.no-padding {
+  padding: 4px 6px !important;
+}
+.borderless-grid-table, .borderless-grid-table td {
+  border: none !important;
+}
 .invoice-notes {
   font-size: 8.5pt;
   color: #1f2937;

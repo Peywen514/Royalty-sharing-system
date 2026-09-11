@@ -1679,6 +1679,8 @@ function confirmPrintCurrentDoc() {
         .invoice-doc-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 9.5pt; }
         .invoice-doc-table th, .invoice-doc-table td { border: 1px solid #000; padding: 5px 8px; vertical-align: middle; }
         .invoice-doc-table th { background-color: #f5f5f5 !important; text-align: center; font-weight: bold; }
+        .invoice-doc-table td.no-padding { padding: 4px 6px !important; }
+        .borderless-grid-table, .borderless-grid-table td { border: none !important; }
         .invoice-checkbox { font-weight: bold; font-size: 11pt; margin-right: 2px; }
         .invoice-notes { font-size: 8.5pt; color: #111; line-height: 1.5; margin-top: 10px; }
         
@@ -1812,60 +1814,69 @@ function buildInvoiceDocHtml(inv) {
     <table class="invoice-doc-table">
       <colgroup>
         <col style="width: 12%;">
-        <col style="width: 18%;">
-        <col style="width: 17%;">
-        <col style="width: 17%;">
-        <col style="width: 17%;">
-        <col style="width: 6%;">
-        <col style="width: 6%;">
-        <col style="width: 7%;">
+        <col style="width: 44%;">
+        <col style="width: 14%;">
+        <col style="width: 30%;">
       </colgroup>
       <tr>
         <th>抬頭</th>
-        <td colspan="4" style="font-weight: bold; font-size: 10.5pt;">${inv.title}</td>
+        <td style="font-weight: bold; font-size: 10.5pt;">${inv.title}</td>
         <th>金額</th>
-        <td colspan="2" style="font-weight: bold; font-size: 11pt; color: #0f172a; text-align: right;">${amountStr}</td>
+        <td style="font-weight: bold; font-size: 11pt; color: #0f172a; text-align: left; padding-left: 12px;">${amountStr}</td>
       </tr>
       <tr>
         <th rowspan="2">種類</th>
-        <td colspan="5">
-          <span class="invoice-checkbox">☒</span>發票：
+        <td colspan="2">
+          <span class="invoice-checkbox">☒</span>發票：&nbsp;&nbsp;
           <span class="invoice-checkbox">☒</span><strong>有統編，請填統編：${inv.tax_id}</strong>
         </td>
-        <td colspan="2">
+        <td>
           <span class="invoice-checkbox">☐</span>無統編
         </td>
       </tr>
       <tr>
-        <td colspan="7">
+        <td colspan="3">
           <span class="invoice-checkbox">☐</span>收據 (限測驗、換證、成績複查)
         </td>
       </tr>
       <tr>
-        <th rowspan="3">收入</th>
-        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>版稅收入</td>
-        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>授權收入</td>
-        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>會員收入</td>
-        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>專案收入</td>
-        <td colspan="3" style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>書籍收入</td>
-      </tr>
-      <tr>
-        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>選務計票</td>
-        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>租金收入</td>
-        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>排版收入</td>
-        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>展覽收入</td>
-        <td colspan="3" style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>研習收入</td>
-      </tr>
-      <tr>
-        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>測驗收入</td>
-        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>換證收入</td>
-        <td style="white-space: nowrap;"><span class="invoice-checkbox">☐</span>成績複查</td>
-        <td style="white-space: nowrap; font-weight: bold;"><span class="invoice-checkbox">☒</span><strong>其他收入</strong></td>
-        <td colspan="3"></td>
+        <th>收入</th>
+        <td colspan="3" class="no-padding" style="padding: 4px 6px;">
+          <table class="borderless-grid-table" style="width: 100%; border-collapse: collapse; border: none; margin: 0;">
+            <colgroup>
+              <col style="width: 20%;">
+              <col style="width: 20%;">
+              <col style="width: 20%;">
+              <col style="width: 20%;">
+              <col style="width: 20%;">
+            </colgroup>
+            <tr>
+              <td style="border: none !important; padding: 4px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>版稅收入</td>
+              <td style="border: none !important; padding: 4px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>授權收入</td>
+              <td style="border: none !important; padding: 4px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>會員收入</td>
+              <td style="border: none !important; padding: 4px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>專案收入</td>
+              <td style="border: none !important; padding: 4px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>書籍收入</td>
+            </tr>
+            <tr>
+              <td style="border: none !important; padding: 4px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>選務計票</td>
+              <td style="border: none !important; padding: 4px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>租金收入</td>
+              <td style="border: none !important; padding: 4px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>排版收入</td>
+              <td style="border: none !important; padding: 4px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>展覽收入</td>
+              <td style="border: none !important; padding: 4px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>研習收入</td>
+            </tr>
+            <tr>
+              <td style="border: none !important; padding: 4px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>測驗收入</td>
+              <td style="border: none !important; padding: 4px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>換證收入</td>
+              <td style="border: none !important; padding: 4px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>成績複查</td>
+              <td style="border: none !important; padding: 4px 2px; white-space: nowrap; font-weight: bold;"><span class="invoice-checkbox">☒</span><strong>其他收入</strong></td>
+              <td style="border: none !important; padding: 4px 2px;"></td>
+            </tr>
+          </table>
+        </td>
       </tr>
       <tr>
         <th>品名</th>
-        <td colspan="7">
+        <td colspan="3">
           (請詳填品名)<br><strong>${inv.item_name || '線上課程訂閱'}</strong>
         </td>
       </tr>
