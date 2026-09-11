@@ -82,10 +82,9 @@
           <div class="form-group">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
               <label class="form-label" style="margin-bottom: 0;">📝 使用者自填明細表 (自 key 表單)</label>
-              <div style="display: flex; gap: 0.3rem;">
-                <button type="button" class="btn btn-secondary btn-sm" onclick="chooseFile('user')" title="開啟桌面或本機檔案總管直接點選檔案">📂 桌面/檔案總管選取</button>
+              <div>
                 <input type="file" id="uploadUserFileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFileUpload('user', this)">
-                <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('uploadUserFileInput').click()" title="從瀏覽器選取檔案">📤 瀏覽</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('uploadUserFileInput').click()" title="點此選取桌面或電腦中的 Excel 檔案">📂 選取檔案</button>
               </div>
             </div>
             <select class="form-select" id="selUserFile">
@@ -102,10 +101,9 @@
           <div class="form-group">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
               <label class="form-label" style="margin-bottom: 0;">📬 平台方郵件寄送對帳單 (平台報表)</label>
-              <div style="display: flex; gap: 0.3rem;">
-                <button type="button" class="btn btn-secondary btn-sm" onclick="chooseFile('platform')" title="開啟桌面或本機檔案總管直接點選檔案">📂 桌面/檔案總管選取</button>
+              <div>
                 <input type="file" id="uploadPlatFileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFileUpload('platform', this)">
-                <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('uploadPlatFileInput').click()" title="從瀏覽器選取檔案">📤 瀏覽</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('uploadPlatFileInput').click()" title="點此選取桌面或電腦中的 Excel 檔案">📂 選取檔案</button>
               </div>
             </div>
             <select class="form-select" id="selPlatFile">
@@ -573,6 +571,6 @@
     <p style="margin-top: 0.3rem; font-size: 0.75rem;">依據會計準則、平台商務合約與講師分潤協議設計 &bull; 支援 104、Hahow、PPA 等多平台線上課程</p>
   </footer>
 
-  <script src="app.js?v=3.3"></script>
+  <script src="app.js?v=3.4"></script>
 </body>
 </html>

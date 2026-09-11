@@ -8,7 +8,7 @@ import sys
 import json
 import urllib.parse
 import webbrowser
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from datetime import datetime
 
 # 加入 core 模組搜尋路徑
@@ -48,7 +48,7 @@ def open_native_file_dialog(title="請選取 Excel 檔案", initial_dir=None):
         proc = subprocess.run(
             cmd,
             capture_output=True,
-            timeout=120
+            timeout=10
         )
         out = proc.stdout.decode('utf-8', errors='ignore').strip()
         if out:
@@ -787,7 +787,7 @@ def run_server():
     url = f"http://127.0.0.1:{PORT}"
     try:
         server_address = ('', PORT)
-        httpd = HTTPServer(server_address, RoyaltyHandler)
+        httpd = ThreadingHTTPServer(server_address, RoyaltyHandler)
     except OSError:
         print(f"==================================================")
         print(f" 線上課程版稅銷售與請款結算系統 已在背景運行中！")

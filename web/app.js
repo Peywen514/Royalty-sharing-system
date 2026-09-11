@@ -237,7 +237,7 @@ async function handleFileUpload(type, inputElem) {
       const data = await res.json();
       if (data.success) {
         applySelectedFile(type, data.path, data.filename);
-        alert(`✅ 檔案載入成功，已帶入選單！\n\n檔名：${data.filename}`);
+        showToast(`已成功載入檔案：${data.filename}`, "success");
       } else {
         alert("上傳失敗: " + (data.error || "未知錯誤"));
       }
