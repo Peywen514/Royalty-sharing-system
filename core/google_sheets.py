@@ -200,7 +200,7 @@ var HEADERS_PPA = [
 
 function doGet(e) {
   setupHeadersNow();
-  var html = '<div style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif; padding: 30px; line-height: 1.6; max-width: 580px; margin: 40px auto; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); background: white;">'
+  var html = '<div style="font-family: sans-serif; padding: 30px; line-height: 1.6; max-width: 580px; margin: 40px auto; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); background: white;">'
     + '<h2 style="color: #1e3a8a; margin-top: 0; font-size: 1.3rem;">🎉 平台對帳請款表（104 / PPA）表頭已更新成功！</h2>'
     + '<p style="color: #334155; font-size: 14px;">已自動為您的試算表分頁建立深海軍藍/皇家靛紫表頭、凍結首行、欄寬自適應與標籤配色。</p>'
     + '<p style="color: #64748b; font-size: 13px; margin-bottom: 0;">💡 您現在可以切換回 Google 試算表直接查看套用結果。</p>'
@@ -409,7 +409,7 @@ var TEACHER_HEADERS = [
 
 function doGet(e) {
   setupHeadersNow();
-  var html = '<div style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif; padding: 30px; line-height: 1.6; max-width: 580px; margin: 40px auto; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); background: white;">'
+  var html = '<div style="font-family: sans-serif; padding: 30px; line-height: 1.6; max-width: 580px; margin: 40px auto; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); background: white;">'
     + '<h2 style="color: #065f46; margin-top: 0; font-size: 1.3rem;">🎉 講師分潤結算表表頭已更新成功！</h2>'
     + '<p style="color: #334155; font-size: 14px;">已自動為所有講師分頁（侯玉彤、簡志峰等）建立專屬高雅綠色系表頭、凍結首行、欄寬自適應與標籤配色。</p>'
     + '<p style="color: #64748b; font-size: 13px; margin-bottom: 0;">💡 您現在可以切換回 Google 試算表直接查看套用結果。</p>'
