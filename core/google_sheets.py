@@ -174,15 +174,15 @@ def sync_to_google_sheets(period, platform_id, platform_name, items, summary, in
 # =========================================================================
 GAS_PLATFORM_CODE = '''/**
  * =========================================================================
- * 【試算表 ①：平台對帳請款表】專用 Google Apps Script (含自動表頭與視覺美化)
+ * 【試算表 1：平台對帳請款表】專用 Google Apps Script
  * =========================================================================
  * 適用分頁：104、PPA
  * 
- * 💡 貼心功能：
- * 1. 若分頁已存在數據但「缺少表頭」，會自動在最頂端插入表頭，絕不覆蓋既有數據！
- * 2. 104 平台套用「經典深海軍藍 (#1e3a8a)」，PPA 平台套用「尊爵皇家靛紫 (#4338ca)」，連同下方分頁標籤一併染色！
- * 3. 凍結首行、加寬列高、自動調整欄寬。
- * 4. 隨時可在 Apps Script 上方選取「setupHeadersNow」點擊「執行」，立即一鍵美化現有表單！
+ * 功能說明：
+ * 1. 自動建立 104、PPA 分頁與專屬表頭樣式。
+ * 2. 104 平台套用經典深海軍藍 (#1e3a8a)，PPA 平台套用皇家靛紫 (#4338ca)。
+ * 3. 凍結首行、自動調整欄寬。
+ * 4. 可在 Apps Script 上方選取 setupHeadersNow 點擊「執行」，一鍵美化現有表單。
  */
 
 var HEADERS_104 = [
@@ -200,12 +200,7 @@ var HEADERS_PPA = [
 
 function doGet(e) {
   setupHeadersNow();
-  var html = '<div style="font-family: sans-serif; padding: 30px; line-height: 1.6; max-width: 580px; margin: 40px auto; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); background: white;">'
-    + '<h2 style="color: #1e3a8a; margin-top: 0; font-size: 1.3rem;">🎉 平台對帳請款表（104 / PPA）表頭已更新成功！</h2>'
-    + '<p style="color: #334155; font-size: 14px;">已自動為您的試算表分頁建立深海軍藍/皇家靛紫表頭、凍結首行、欄寬自適應與標籤配色。</p>'
-    + '<p style="color: #64748b; font-size: 13px; margin-bottom: 0;">💡 您現在可以切換回 Google 試算表直接查看套用結果。</p>'
-    + '</div>';
-  return HtmlService.createHtmlOutput(html).setTitle("平台對帳表美化成功");
+  return ContentService.createTextOutput("成功：平台對帳請款表表頭已成功建立並完成美化！");
 }
 
 function doPost(e) {
@@ -335,10 +330,10 @@ function ensureHeaderAndStyle(sheet, headers, headerBgColor) {
              .setHorizontalAlignment("center")
              .setVerticalAlignment("middle");
 
-  sheet.setRowHeight(1, 38);       // 表頭高度加大更舒適
-  sheet.setFrozenRows(1);          // 凍結首行
+  sheet.setRowHeight(1, 38);
+  sheet.setFrozenRows(1);
   try {
-    sheet.setTabColor(headerBgColor); // 將下方分頁標籤同步上色
+    sheet.setTabColor(headerBgColor);
   } catch (e) {}
 
   // 自動調整欄寬
@@ -359,8 +354,8 @@ function formatDataRows(sheet, colCount) {
 }
 
 /**
- * 💡【手動一鍵美化現有工作表】
- * 可在 Apps Script 上方選取「setupHeadersNow」並點擊「執行」，立即一鍵為目前所有分頁加上表頭與顏色！
+ * 手動一鍵美化現有工作表
+ * 可在 Apps Script 上方選取 setupHeadersNow 並點擊「執行」
  */
 function setupHeadersNow() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -385,20 +380,19 @@ function setupHeadersNow() {
 '''
 
 # =========================================================================
-# 試算表 ②【講師分潤結算表】專用 Google Apps Script 程式碼 (分頁：侯玉彤、簡志峰)
+# 試算表 2：【講師分潤結算表】專用 Google Apps Script 程式碼 (分頁：侯玉彤、簡志峰)
 # =========================================================================
 GAS_TEACHER_CODE = '''/**
  * =========================================================================
- * 【試算表 ②：講師分潤結算表】專用 Google Apps Script (含自動表頭與視覺美化)
+ * 【試算表 2：講師分潤結算表】專用 Google Apps Script
  * =========================================================================
  * 適用分頁：侯玉彤、簡志峰 等講師分頁
  * 
- * 💡 貼心功能：
+ * 功能說明：
  * 1. 自動依授課講師姓名分流寫入所屬分頁。
- * 2. 若分頁已存在數據但「缺少表頭」，會自動在最頂端插入表頭，絕不覆蓋既有數據！
- * 3. 侯玉彤老師套用「高雅森林深綠 (#065f46)」，簡志峰老師套用「雅緻湖水墨綠 (#0f766e)」，連同分頁標籤一併上色！
- * 4. 凍結首行、加寬列高、自動調整欄寬。
- * 5. 隨時可在 Apps Script 上方選取「setupHeadersNow」點擊「執行」，立即一鍵美化現有表單！
+ * 2. 侯玉彤老師套用森林深綠 (#065f46)，簡志峰老師套用雅緻藍綠 (#0f766e)。
+ * 3. 凍結首行、自動調整欄寬。
+ * 4. 可在 Apps Script 上方選取 setupHeadersNow 點擊「執行」，一鍵美化現有表單。
  */
 
 var TEACHER_HEADERS = [
@@ -409,12 +403,7 @@ var TEACHER_HEADERS = [
 
 function doGet(e) {
   setupHeadersNow();
-  var html = '<div style="font-family: sans-serif; padding: 30px; line-height: 1.6; max-width: 580px; margin: 40px auto; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); background: white;">'
-    + '<h2 style="color: #065f46; margin-top: 0; font-size: 1.3rem;">🎉 講師分潤結算表表頭已更新成功！</h2>'
-    + '<p style="color: #334155; font-size: 14px;">已自動為所有講師分頁（侯玉彤、簡志峰等）建立專屬高雅綠色系表頭、凍結首行、欄寬自適應與標籤配色。</p>'
-    + '<p style="color: #64748b; font-size: 13px; margin-bottom: 0;">💡 您現在可以切換回 Google 試算表直接查看套用結果。</p>'
-    + '</div>';
-  return HtmlService.createHtmlOutput(html).setTitle("講師結算表美化成功");
+  return ContentService.createTextOutput("成功：講師分潤結算表表頭已成功建立並完成美化！");
 }
 
 function doPost(e) {
@@ -534,10 +523,10 @@ function ensureHeaderAndStyle(sheet, headers, headerBgColor) {
              .setHorizontalAlignment("center")
              .setVerticalAlignment("middle");
 
-  sheet.setRowHeight(1, 38);       // 表頭高度加大
-  sheet.setFrozenRows(1);          // 凍結首行
+  sheet.setRowHeight(1, 38);
+  sheet.setFrozenRows(1);
   try {
-    sheet.setTabColor(headerBgColor); // 將下方分頁標籤同步上色
+    sheet.setTabColor(headerBgColor);
   } catch (e) {}
 
   // 自動調整欄寬
@@ -560,8 +549,8 @@ function formatDataRows(sheet, colCount) {
 }
 
 /**
- * 💡【手動一鍵美化現有工作表】
- * 可在 Apps Script 上方選取「setupHeadersNow」並點擊「執行」，立即一鍵為目前所有分頁加上表頭與顏色！
+ * 手動一鍵美化現有工作表
+ * 可在 Apps Script 上方選取 setupHeadersNow 並點擊「執行」
  */
 function setupHeadersNow() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
