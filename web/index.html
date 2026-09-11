@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>線上課程版稅銷售與請款結算系統</title>
+  <link rel="stylesheet" href="style.css?v=3.0">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div>
+      <h1>📈 線上課程版稅銷售與請款結算系統</h1>
+      <p style="font-size: 0.85rem; opacity: 0.9; margin-top: 0.2rem;">
+        支援多平台自動對帳、自動生成發票請款申請單、講師分潤試算、Google Sheet 自動串聯與月度歸檔
+      </p>
+    </div>
+    <div style="display: flex; gap: 0.8rem; align-items: center;">
+      <span class="header-badge" id="systemStatus">🟢 系統連線正常</span>
+      <button class="btn btn-secondary btn-sm" onclick="openCurrentFolder()">📂 開啟系統資料夾</button>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="nav-tabs">
+    <div class="nav-tab active" onclick="switchTab('tab-reconcile')">📑 本月對帳與請款作業</div>
+    <div class="nav-tab" onclick="switchTab('tab-teachers')">🧑‍🏫 講師分潤與課程設定</div>
+    <div class="nav-tab" onclick="switchTab('tab-platforms')">🏢 合作平台管理</div>
+    <div class="nav-tab" onclick="switchTab('tab-googlesheets')">🌐 Google Sheet 自動串聯</div>
+    <div class="nav-tab" onclick="switchTab('tab-history')">📊 歷史紀錄與請款存檔</div>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="container">
+    
+    <!-- Tab 1: 本月對帳與請款作業 -->
+    <section id="tab-reconcile" class="tab-content active">
+      
+      <!-- 步驟 1: 參數選擇與檔案載入 -->
+      <div class="card">
+        <div class="card-title">
+          <span>1️⃣ 設定結算期別與選擇對帳單</span>
+          <button class="btn btn-secondary btn-sm" onclick="resetToInitialState()" title="恢復原狀、清除所有核對與產出狀態，從頭開始">🔄 恢復原狀 (從頭開始)</button>
+        </div>
+
+        <div class="grid-3">
+          <div class="form-group">
+            <label class="form-label">民國年份</label>
+            <select class="form-select" id="selRocYear">
+              <option value="115" selected>民國 115 年 (2026)</option>
+              <option value="116">民國 116 年 (2027)</option>
+              <option value="114">民國 114 年 (2025)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">結算月份</label>
+            <select class="form-select" id="selMonth">
+              <option value="1">1 月</option>
+              <option value="2">2 月</option>
+              <option value="3">3 月</option>
+              <option value="4">4 月</option>
+              <option value="5">5 月</option>
+              <option value="6">6 月</option>
+              <option value="7">7 月</option>
+              <option value="8" selected>8 月</option>
+              <option value="9">9 月</option>
+              <option value="10">10 月</option>
+              <option value="11">11 月</option>
+              <option value="12">12 月</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">合作平台</label>
+            <select class="form-select" id="selPlatform">
+              <!-- 動態載入平台列表 -->
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top: 0.5rem;">
+          <!-- 使用者自 key 表單 -->
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <label class="form-label" style="margin-bottom: 0;">📝 使用者自填明細表 (自 key 表單)</label>
+              <div style="display: flex; gap: 0.3rem;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="chooseFile('user')" title="開啟桌面或本機檔案總管直接點選檔案">📂 桌面/檔案總管選取</button>
+                <input type="file" id="uploadUserFileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFileUpload('user', this)">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('uploadUserFileInput').click()" title="從瀏覽器選取檔案">📤 瀏覽</button>
+              </div>
+            </div>
+            <select class="form-select" id="selUserFile">
+              <option value="">-- 請選擇檔案或等待偵測 --</option>
+            </select>
+            <div id="userSelectedBadge" style="display:none; margin-top: 0.4rem; padding: 0.35rem 0.6rem; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; font-size: 0.8rem; color: #065f46; justify-content: space-between; align-items: center;">
+              <span><strong id="userSelectedName"></strong> <span id="userSelectedPath" style="font-size: 0.72rem; color: #64748b;"></span></span>
+              <button type="button" onclick="clearSelectedFile('user')" style="background:none; border:none; cursor:pointer; color:#ef4444; font-weight:bold; font-size: 1rem; padding: 0 4px;" title="清除選取">&times;</button>
+            </div>
+            <p class="file-box-desc" style="margin-top: 0.4rem;">範例：<code>104平台版稅明細-115年8月.xlsx</code></p>
+          </div>
+
+          <!-- 平台方郵件對帳單 -->
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <label class="form-label" style="margin-bottom: 0;">📬 平台方郵件寄送對帳單 (平台報表)</label>
+              <div style="display: flex; gap: 0.3rem;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="chooseFile('platform')" title="開啟桌面或本機檔案總管直接點選檔案">📂 桌面/檔案總管選取</button>
+                <input type="file" id="uploadPlatFileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFileUpload('platform', this)">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('uploadPlatFileInput').click()" title="從瀏覽器選取檔案">📤 瀏覽</button>
+              </div>
+            </div>
+            <select class="form-select" id="selPlatFile">
+              <option value="">-- 請選擇檔案或等待偵測 --</option>
+            </select>
+            <div id="platSelectedBadge" style="display:none; margin-top: 0.4rem; padding: 0.35rem 0.6rem; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; font-size: 0.8rem; color: #065f46; justify-content: space-between; align-items: center;">
+              <span><strong id="platSelectedName"></strong> <span id="platSelectedPath" style="font-size: 0.72rem; color: #64748b;"></span></span>
+              <button type="button" onclick="clearSelectedFile('platform')" style="background:none; border:none; cursor:pointer; color:#ef4444; font-weight:bold; font-size: 1rem; padding: 0 4px;" title="清除選取">&times;</button>
+            </div>
+            <p class="file-box-desc" style="margin-top: 0.4rem;">範例：<code>2026年8月對帳for中華民國電腦技能基金會.xlsx</code></p>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+          <button class="btn btn-primary" onclick="runReconciliation()">⚡ 開始雙向核對表單</button>
+          <button class="btn btn-success" onclick="runBatchAll()">🌟 一鍵全自動月結 (核對 + 匯入 + 產出 Word + 產出 Excel)</button>
+        </div>
+      </div>
+
+      <!-- PPA 專屬版稅拆解與即時試算小工具 -->
+      <div class="card" id="ppaCard" style="border: 2px solid #3b82f6; background: #f0f7ff; display: none;">
+        <div class="card-title" style="color: #1e40af;">
+          <span>💡 PressPlay (PPA) 合約版稅費用即時拆解試算</span>
+          <span class="header-badge" style="background: #2563eb; color: white;">合約條款自動解析</span>
+        </div>
+        <p style="font-size: 0.85rem; color: #334155; margin-bottom: 1rem; line-height: 1.6;">
+          📌 <strong>PPA 合約計算流程</strong>：消費者實際支付之消費總額 ➔ 扣除 <strong>金流手續費 2.25%</strong> ➔ 扣除 <strong>平台服務費 20%</strong>（未稅額減金流後之 20%） ➔ 扣除 <strong>未稅行銷費 (我方負擔 80%)</strong> ➔ 剩餘即為 <strong>CSF 銷售所得 (未稅)</strong> ➔ <strong>請款發票 (銷售所得 × 1.05)</strong>！
+        </p>
+        <div class="grid-3">
+          <div class="form-group">
+            <label class="form-label">💰 消費總額 (消費者實付總額，含稅)</label>
+            <input type="number" class="form-control" id="ppaInputGross" value="1288" placeholder="例：1288" oninput="calcPpaLive()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">🏷️ 行銷活動總成本 (若有折扣代碼/優惠券)</label>
+            <input type="number" class="form-control" id="ppaInputMarketing" value="0" placeholder="無行銷折扣填 0" oninput="calcPpaLive()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">🛠️ 課程製作成本扣除 (講師攤提費用)</label>
+            <input type="number" class="form-control" id="ppaInputCost" value="0" placeholder="例：1069" oninput="calcPpaLive()">
+          </div>
+        </div>
+
+        <!-- 試算結果指標格 -->
+        <div class="grid-5" id="ppaResultGrid" style="margin-top: 1rem;">
+          <!-- 動態載入 -->
+        </div>
+      </div>
+
+      <!-- 步驟 2: 核對與審計看板 (執行核對後展示) -->
+      <div class="card" id="auditCard" style="display: none;">
+        <div class="card-title">
+          <span>2️⃣ 對帳審計結果與數據對照</span>
+          <span id="auditStatusBadge" class="status-pill matched">✅ 核對相符</span>
+        </div>
+
+        <!-- 指標卡片 -->
+        <div class="grid-5" id="metricCards">
+          <!-- 動態載入指標 -->
+        </div>
+
+        <!-- 雙向明細表格 -->
+        <h4 style="margin: 1.5rem 0 0.8rem 0; font-size: 1rem;">📋 課程與銷售核對細項</h4>
+        <div class="table-responsive">
+          <table class="custom-table" id="reconcileItemsTable">
+            <thead>
+              <tr>
+                <th>NO.</th>
+                <th>課程名稱</th>
+                <th class="text-right">定價</th>
+                <th class="text-center">自填數量</th>
+                <th class="text-right">自填版稅(含稅)</th>
+                <th class="text-right">自填未稅</th>
+                <th class="text-center">狀態</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 動態載入列 -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 步驟 3: 請款單與講師分潤處理行動區 -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; margin-top: 1.5rem;">
+          <h4 style="margin-bottom: 0.8rem; font-size: 1rem; color: #1e3a8a;">💼 審核通過與請款單據生成</h4>
+          <div style="display: flex; flex-wrap: wrap; gap: 0.8rem;">
+            <button class="btn btn-secondary" onclick="importToSystem()">📥 1. 審核通過並匯入系統</button>
+            <button class="btn btn-primary" onclick="generateInvoiceDoc()">📄 2. 產出《附件1_發票收據申請單》Word</button>
+            <button class="btn btn-primary" onclick="settleTeacherRoyalty()">🧑‍🏫 3. 結算並產出講師分潤 Excel</button>
+            <button class="btn btn-print" onclick="openPrintModal()" style="background: #0284c7; color: white; border: none; font-weight: 700; box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);">🖨️ 4. 列印發票請款單 / 結算表單 (連接影印機)</button>
+            <button class="btn btn-success" onclick="syncCurrentToGoogleSheets()">🌐 5. 同步數據至 Google Sheet</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 生成結果檔案清單 -->
+      <div class="card" id="resultFilesCard" style="display: none;">
+        <div class="card-title">
+          <span>📁 已產出之月度存檔文件 (115年X月)</span>
+          <div style="display: flex; gap: 0.6rem; align-items: center;">
+            <button class="btn btn-print btn-sm" onclick="openPrintModal()" style="background: #0284c7; color: white; font-weight: 600;">🖨️ 列印已產出文件 (連接影印機)</button>
+            <button class="btn btn-secondary btn-sm" onclick="openPeriodFolder()">📂 開啟月度存檔資料夾</button>
+          </div>
+        </div>
+        <div id="outputFilesList">
+          <!-- 動態載入產出檔案 -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Tab 2: 講師分潤與課程設定 -->
+    <section id="tab-teachers" class="tab-content">
+      <div class="card">
+        <div class="card-title">
+          <span>🧑‍🏫 課程講師與分潤規則對照表</span>
+          <button class="btn btn-primary btn-sm" onclick="openAddCourseModal()">➕ 新增課程分潤規則</button>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+          會計分潤公式：結餘淨利 = (定價 × 數量 × 平台淨額比率 80%) - 課程製作相關費用攤提；本期應付 = 結餘淨利 × 講師分潤比率 (預設 50%)。
+        </p>
+        <div class="table-responsive">
+          <table class="custom-table" id="coursesTable">
+            <thead>
+              <tr>
+                <th>課程名稱</th>
+                <th>授課平台</th>
+                <th>授課講師</th>
+                <th class="text-right">課程定價</th>
+                <th class="text-center">講師分潤比率</th>
+                <th class="text-right">製作費用扣除</th>
+                <th>備註說明</th>
+                <th class="text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 動態載入課程 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 3: 合作平台管理 -->
+    <section id="tab-platforms" class="tab-content">
+      <div class="card">
+        <div class="card-title">
+          <span>🏢 線上課程合作平台設定 (抬頭、統編、拆帳比、入帳規則)</span>
+          <button class="btn btn-primary btn-sm" onclick="openAddPlatformModal()">➕ 新增合作平台</button>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+          系統於生成《附件1_發票收據申請單》時，將依此處之平台設定自動帶入公司抬頭、統一編號、品名與下個月底預計入帳日期。
+        </p>
+        <div class="table-responsive">
+          <table class="custom-table" id="platformsTable">
+            <thead>
+              <tr>
+                <th>平台代碼</th>
+                <th>發票抬頭 (全名)</th>
+                <th>統一編號</th>
+                <th>收入種類</th>
+                <th>請款品名</th>
+                <th class="text-center">分潤成數</th>
+                <th>預計入帳週期</th>
+                <th>備註</th>
+                <th class="text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 動態載入平台 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 4: Google Sheets 自動串聯 -->
+    <section id="tab-googlesheets" class="tab-content">
+      <div class="card">
+        <div class="card-title">
+          <span>🌐 Google Sheets 線上自動串聯與即時統計</span>
+          <button class="btn btn-success btn-sm" onclick="saveGoogleSheetsConfig()">💾 儲存設定</button>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.6; margin-bottom: 1.25rem;">
+          💡 <strong>告別手動 key 表格！</strong> 透過 Google Apps Script (GAS) 網路應用程式，系統每次對帳完成後，可直接將各課程銷售明細、未稅/應稅金額、發票請款資料及各老師的分潤自動新增（Append）至您的 Google Sheet，無須安裝第三方憑證，任何 Google 帳號皆可即刻使用！
+        </p>
+
+        <div class="grid-2">
+          <div>
+            <div class="form-group" style="background: #eff6ff; padding: 0.9rem; border-radius: 8px; border: 1px solid #bfdbfe;">
+              <label class="form-label" style="color: #1e40af;">🔗 試算表 ①【平台對帳請款總表】Webhook 網址</label>
+              <input type="text" class="form-control" id="gsPlatformWebhook" placeholder="https://script.google.com/macros/s/.../exec">
+              <p class="file-box-desc" style="margin-top: 0.3rem;">系統將自動依平台寫入 <code>104平台</code> 或 <code>PPA平台</code> 專屬分頁。</p>
+            </div>
+
+            <div class="form-group" style="background: #f0fdf4; padding: 0.9rem; border-radius: 8px; border: 1px solid #bbf7d0; margin-top: 0.8rem;">
+              <label class="form-label" style="color: #166534;">🔗 試算表 ②【講師分潤結算總表】Webhook 網址 (獨立 Google Sheet)</label>
+              <input type="text" class="form-control" id="gsTeacherWebhook" placeholder="https://script.google.com/macros/s/.../exec">
+              <p class="file-box-desc" style="margin-top: 0.3rem;">獨立試算表，記錄各老師月度淨利與應付金額，保障平台商業機密不外洩。</p>
+            </div>
+
+            <div style="display: flex; gap: 0.8rem; margin-top: 1rem;">
+              <button class="btn btn-primary" onclick="testGoogleSheetsSync()">🧪 發送測試資料至兩張 Google Sheet</button>
+            </div>
+          </div>
+
+          <div style="background: #f1f5f9; padding: 1.2rem; border-radius: 10px; border: 1px solid var(--border);">
+            <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: #1e3a8a;">📋 3 步快速設定說明：</h4>
+            <ol style="font-size: 0.85rem; color: #334155; line-height: 1.6; padding-left: 1.2rem; margin-bottom: 1rem;">
+              <li>打開對應的 Google Sheet，點選上方選單：<strong>「擴充功能」 ➔ 「Apps Script」</strong>。</li>
+              <li>清空右側編輯器既有內容，貼上對應的程式碼（下方提供一鍵複製），點擊儲存圖示 💾。</li>
+              <li>點擊右上角<strong>「部署」 ➔ 「新部署」</strong>，類型選<strong>「網頁應用程式 (Web App)」</strong>，設定「誰可以存取：<strong>所有人 (Anyone)</strong>」，複製產生的網址貼在左方對應欄位即可！</li>
+            </ol>
+            <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+              <button class="btn btn-secondary btn-sm" onclick="copyPlatformGasCode()" style="text-align: left; background: #eff6ff; border-color: #93c5fd; color: #1e40af;">
+                📋 複製【試算表 ① 平台對帳表】Apps Script 程式碼<br>
+                <small style="color: #64748b; font-weight: normal;">(自動建立/寫入 104、PPA 專屬分頁)</small>
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="copyTeacherGasCode()" style="text-align: left; background: #f0fdf4; border-color: #86efac; color: #166534;">
+                📋 複製【試算表 ② 講師分潤表】Apps Script 程式碼<br>
+                <small style="color: #64748b; font-weight: normal;">(自動建立/寫入 侯玉彤、簡志峰 等講師專屬分頁)</small>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 5: 歷史紀錄與請款存檔 -->
+    <section id="tab-history" class="tab-content">
+      <!-- 區塊 1: 發票請款申請單紀錄 -->
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-title">
+          <span>📄 已開立《發票收據申請單》存檔紀錄 (向合作平台請款)</span>
+          <button class="btn btn-secondary btn-sm" onclick="loadHistory()">🔄 重新整理</button>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+          記錄各月度針對 104、PPA 等合作平台所產出之標準請款單 Word 檔、抬頭、統編、金額與預計入帳日。
+        </p>
+        <div class="table-responsive">
+          <table class="custom-table" id="historyInvoiceTable">
+            <thead>
+              <tr>
+                <th>結算期別</th>
+                <th>申請日期</th>
+                <th>發票抬頭 (受款平台)</th>
+                <th>統一編號</th>
+                <th class="text-right">請款金額(含稅)</th>
+                <th>預計入帳日期</th>
+                <th>請款單存檔文件 (Word)</th>
+                <th class="text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 動態載入發票紀錄 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 區塊 2: 講師版稅結算紀錄 -->
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-title">
+          <span>🧑‍🏫 講師版稅分潤結算紀錄 (侯玉彤、簡志峰等老師)</span>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+          記錄每次結算給各位老師之課程銷售分潤、製作成本扣除、結餘淨利與應付版稅明細 Excel 檔。
+        </p>
+        <div class="table-responsive">
+          <table class="custom-table" id="historySettlementTable">
+            <thead>
+              <tr>
+                <th>結算期別</th>
+                <th>授課講師</th>
+                <th>課程名稱</th>
+                <th>所屬平台</th>
+                <th class="text-right">平台淨額</th>
+                <th class="text-right">製作費攤提</th>
+                <th class="text-right">結餘淨利</th>
+                <th class="text-center">分潤比</th>
+                <th class="text-right">本期應付版稅</th>
+                <th>明細檔 (Excel)</th>
+                <th class="text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 動態載入講師結算紀錄 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 區塊 3: 歷史月度雙向對帳紀錄 -->
+      <div class="card">
+        <div class="card-title">
+          <span>📊 歷史月度雙向對帳審核紀錄 (自填表單 vs 平台對帳單)</span>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+          記錄自填明細與平台方提供數據之雙向核對結果與金額相符狀態。
+        </p>
+        <div class="table-responsive">
+          <table class="custom-table" id="historyTable">
+            <thead>
+              <tr>
+                <th>結算期別</th>
+                <th>合作平台</th>
+                <th class="text-center">銷售件數</th>
+                <th class="text-right">應收總版稅(含稅)</th>
+                <th class="text-right">未稅淨額</th>
+                <th class="text-center">核對狀態</th>
+                <th>處理時間</th>
+                <th class="text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 動態載入對帳歷史 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal: 編輯/新增課程 -->
+  <div class="modal-overlay" id="courseModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 class="modal-title" id="courseModalTitle">編輯課程分潤規則</h3>
+        <button class="modal-close" onclick="closeCourseModal()">&times;</button>
+      </div>
+      <input type="hidden" id="modalCourseId">
+      <div class="form-group">
+        <label class="form-label">課程名稱</label>
+        <input type="text" class="form-control" id="modalCourseName" placeholder="輸入完整課程名稱">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">所屬平台</label>
+          <select class="form-select" id="modalCoursePlatform">
+            <!-- 動態載入 -->
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">授課講師</label>
+          <input type="text" class="form-control" id="modalCourseTeacher" placeholder="例：侯玉彤">
+        </div>
+      </div>
+      <div class="grid-3">
+        <div class="form-group">
+          <label class="form-label">課程定價</label>
+          <input type="number" class="form-control" id="modalCoursePrice" value="1288">
+        </div>
+        <div class="form-group">
+          <label class="form-label">講師分潤比率</label>
+          <input type="number" step="0.05" class="form-control" id="modalCourseShareRate" value="0.5" placeholder="0.5 代表 50%">
+        </div>
+        <div class="form-group">
+          <label class="form-label">製作費用攤提</label>
+          <input type="number" class="form-control" id="modalCourseCost" value="0" placeholder="例：1069">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">備註說明</label>
+        <input type="text" class="form-control" id="modalCourseNote" placeholder="例：扣除平台服務費、課程製作相關費用">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeCourseModal()">取消</button>
+        <button class="btn btn-primary" onclick="saveCourseFromModal()">💾 儲存設定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: 編輯/新增平台 -->
+  <div class="modal-overlay" id="platformModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 class="modal-title" id="platformModalTitle">編輯合作平台設定</h3>
+        <button class="modal-close" onclick="closePlatformModal()">&times;</button>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">平台代碼 (唯一英文識別碼)</label>
+          <input type="text" class="form-control" id="modalPlatId" placeholder="例：104, hahow, ppa">
+        </div>
+        <div class="form-group">
+          <label class="form-label">發票請款抬頭 (公司全名)</label>
+          <input type="text" class="form-control" id="modalPlatName" placeholder="例：一零四資訊科技股份有限公司">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">公司統一編號 (8碼)</label>
+          <input type="text" class="form-control" id="modalPlatTaxId" placeholder="例：84598349">
+        </div>
+        <div class="form-group">
+          <label class="form-label">供應商分潤成數 (我方所得)</label>
+          <input type="number" step="0.05" class="form-control" id="modalPlatRate" value="0.8" placeholder="0.8 代表 80%">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">請款品名</label>
+          <input type="text" class="form-control" id="modalPlatItem" value="線上課程訂閱">
+        </div>
+        <div class="form-group">
+          <label class="form-label">收入種類</label>
+          <input type="text" class="form-control" id="modalPlatRevType" value="版稅收入">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">備註說明</label>
+        <input type="text" class="form-control" id="modalPlatNote" placeholder="例：104學習精靈、次月月底入帳">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closePlatformModal()">取消</button>
+        <button class="btn btn-primary" onclick="savePlatformFromModal()">💾 儲存平台</button>
+      </div>
+    </div>
+  </div>
+  <!-- Modal: 文件列印與即時預覽中心 (連線實體影印機) -->
+  <div class="modal-overlay" id="printModal">
+    <div class="modal-box print-modal-box">
+      <div class="modal-header" style="margin-bottom: 0.5rem; padding-bottom: 0.6rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+          <h3 class="modal-title" style="display: flex; align-items: center; gap: 0.5rem;">🖨️ 文件列印與即時預覽中心</h3>
+          <span id="printPrinterBadge" class="status-pill matched" style="font-size: 0.8rem; padding: 0.2rem 0.65rem;">
+            🖨️ 偵測影印機中...
+          </span>
+        </div>
+        <button class="modal-close" onclick="closePrintModal()">&times;</button>
+      </div>
+
+      <!-- 頂部切換文件與列印控制列 -->
+      <div class="print-control-bar">
+        <div class="print-doc-tabs" id="printDocTabs">
+          <!-- 動態載入文件切換標籤：發票請款單、各講師明細表 -->
+        </div>
+        <div class="print-actions">
+          <button class="btn btn-primary" onclick="confirmPrintCurrentDoc()" style="background: #0284c7; border-color: #0284c7; padding: 0.55rem 1.3rem; font-size: 0.95rem; font-weight: 700; box-shadow: 0 2px 6px rgba(2, 132, 199, 0.4);">
+            🖨️ 確認列印 (送至影印機)
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btnOpenOfficeCurrent" onclick="openCurrentOfficeDoc()" title="以本機 Microsoft Word 或 Excel 開啟檔案">
+            📄 以 Office 原檔開啟
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="closePrintModal()">✖️ 關閉</button>
+        </div>
+      </div>
+
+      <!-- 預覽提示說明 -->
+      <div class="print-notice-bar">
+        💡 <strong>列印提示</strong>：點擊「<strong>確認列印</strong>」會直接開啟瀏覽器標準列印設定視窗（已自動帶入您的實體影印機），畫面內容採 A4 正式公文規格排版，可先行預覽檢查再送印，與平常文件列印完全相同！
+      </div>
+
+      <!-- A4 模擬紙張預覽區 (可滾動) -->
+      <div class="print-preview-viewport" id="printPreviewViewport">
+        <!-- 動態填入 A4 紙張 HTML -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>線上課程版稅銷售與請款結算系統 v1.1 &bull; 財團法人中華民國電腦技能基金會 (CSF)</p>
+    <p style="margin-top: 0.3rem; font-size: 0.75rem;">依據會計準則、平台商務合約與講師分潤協議設計 &bull; 支援 104、Hahow、PPA 等多平台線上課程</p>
+  </footer>
+
+  <script src="app.js?v=3.2"></script>
+</body>
+</html>

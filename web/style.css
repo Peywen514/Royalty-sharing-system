@@ -1,0 +1,691 @@
+/* Modern Accounting & Settlement UI Styles */
+:root {
+  --primary: #1e40af;
+  --primary-hover: #1d4ed8;
+  --primary-light: #eff6ff;
+  --success: #059669;
+  --success-light: #ecfdf5;
+  --warning: #d97706;
+  --warning-light: #fffbeb;
+  --danger: #dc2626;
+  --danger-light: #fef2f2;
+  --bg: #f8fafc;
+  --card-bg: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --radius: 12px;
+  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.07), 0 4px 6px -4px rgb(0 0 0 / 0.07);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Microsoft JhengHei", sans-serif;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text-main);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #3b82f6 100%);
+  color: white;
+  padding: 1.25rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow-lg);
+}
+
+.header h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.header-badge {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.25rem 0.6rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+/* Navigation Tabs */
+.nav-tabs {
+  background: white;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  padding: 0 2rem;
+  gap: 1.5rem;
+}
+
+.nav-tab {
+  padding: 1rem 0.5rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.nav-tab:hover {
+  color: var(--primary);
+}
+
+.nav-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* Main Container */
+.container {
+  max-width: 1280px;
+  margin: 1.5rem auto;
+  padding: 0 1.5rem;
+  width: 100%;
+  flex: 1;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* Cards */
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.card-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.75rem;
+}
+
+/* Grid Layouts */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+}
+
+.grid-5 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+/* Form Controls */
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 0.4rem;
+}
+
+.form-control, .form-select {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background-color: white;
+  transition: border-color 0.2s;
+}
+
+.form-control:focus, .form-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* File Picker Box */
+.file-box {
+  background: var(--bg);
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.file-box:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.file-box-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.file-box-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.file-selected {
+  font-weight: 600;
+  color: var(--primary);
+  word-break: break-all;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.btn-success {
+  background-color: var(--success);
+  color: white;
+}
+
+.btn-success:hover {
+  background-color: #047857;
+}
+
+.btn-secondary {
+  background-color: #e2e8f0;
+  color: #334155;
+}
+
+.btn-secondary:hover {
+  background-color: #cbd5e1;
+}
+
+.btn-sm {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+/* Audit Metric Card */
+.metric-card {
+  background: white;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+}
+
+.metric-val {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.metric-diff {
+  font-size: 0.75rem;
+  margin-top: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.metric-matched {
+  color: var(--success);
+}
+
+.metric-mismatched {
+  color: var(--danger);
+}
+
+/* Audit Status Badge */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.status-pill.matched {
+  background-color: var(--success-light);
+  color: var(--success);
+  border: 1px solid #a7f3d0;
+}
+
+.status-pill.discrepancy {
+  background-color: var(--danger-light);
+  color: var(--danger);
+  border: 1px solid #fecaca;
+}
+
+/* Tables */
+.table-responsive {
+  overflow-x: auto;
+}
+
+.custom-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.custom-table th {
+  background-color: #f1f5f9;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: #475569;
+  border-bottom: 1px solid var(--border);
+}
+
+.custom-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-main);
+}
+
+.custom-table tr:hover {
+  background-color: #f8fafc;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* Output File Card */
+.output-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.2rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 0.6rem;
+}
+
+.output-item-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.output-item-icon {
+  font-size: 1.5rem;
+}
+
+.output-filename {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.output-path {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Modal Popup */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+.modal-overlay.active {
+  display: flex;
+}
+.modal-box {
+  background: white;
+  border-radius: 12px;
+  width: 95%;
+  max-width: 560px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15);
+  animation: modalIn 0.2s ease-out;
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.8rem;
+  margin-bottom: 1rem;
+}
+.modal-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+/* Footer */
+.footer {
+  text-align: center;
+  padding: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  background: white;
+  margin-top: 2rem;
+}
+
+/* ==================================================== */
+/* 列印中心與 A4 紙張即時預覽樣式                        */
+/* ==================================================== */
+.btn-print {
+  background-color: #0284c7 !important;
+  color: white !important;
+  border-color: #0284c7 !important;
+}
+.btn-print:hover {
+  background-color: #0369a1 !important;
+}
+
+.print-modal-box {
+  max-width: 1080px;
+  width: 96%;
+  height: 94vh;
+  display: flex;
+  flex-direction: column;
+  padding: 1.2rem 1.5rem;
+  overflow: hidden;
+}
+
+.print-control-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.5rem 0 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.print-doc-tabs {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.print-tab-btn {
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.print-tab-btn:hover {
+  background: #f1f5f9;
+  color: #0284c7;
+}
+
+.print-tab-btn.active {
+  background: #0284c7;
+  color: white;
+  border-color: #0284c7;
+}
+
+.print-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.print-notice-bar {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.825rem;
+  color: #1e40af;
+  margin: 0.5rem 0;
+}
+
+.print-preview-viewport {
+  flex: 1;
+  overflow-y: auto;
+  background: #334155;
+  padding: 1.5rem 1rem;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+/* A4 紙張模擬規格 (210mm x 297mm) */
+.a4-paper-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  background: white;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  padding: 15mm 18mm;
+  box-sizing: border-box;
+  color: #111827;
+  font-family: "標楷體", "Microsoft JhengHei", "新細明體", sans-serif;
+  position: relative;
+  page-break-after: always;
+}
+
+/* 發票請款單表格樣式 */
+.invoice-doc-title {
+  text-align: center;
+  font-size: 15pt;
+  font-weight: bold;
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+.invoice-doc-subtitle {
+  text-align: center;
+  font-size: 18pt;
+  font-weight: bold;
+  letter-spacing: 5px;
+  margin-bottom: 12px;
+}
+.invoice-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+  font-size: 9.5pt;
+}
+.invoice-doc-table th, .invoice-doc-table td {
+  border: 1px solid #111827;
+  padding: 5px 8px;
+  vertical-align: middle;
+}
+.invoice-doc-table th {
+  background-color: #f8fafc;
+  text-align: center;
+  font-weight: bold;
+}
+.invoice-checkbox {
+  font-weight: bold;
+  font-size: 11pt;
+  margin-right: 2px;
+}
+.invoice-notes {
+  font-size: 8.5pt;
+  color: #1f2937;
+  line-height: 1.5;
+  margin-top: 10px;
+}
+
+/* 講師版稅明細 Excel 表格樣式 */
+.settle-doc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+}
+.settle-doc-title {
+  font-size: 14pt;
+  font-weight: bold;
+}
+.settle-doc-period {
+  font-size: 11pt;
+  font-weight: bold;
+  color: #1e3a8a;
+}
+.settle-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+  margin-bottom: 16px;
+}
+.settle-doc-table th, .settle-doc-table td {
+  border: 1px solid #64748b;
+  padding: 6px 6px;
+}
+.settle-doc-table th {
+  background-color: #f1f5f9;
+  text-align: center;
+  font-weight: bold;
+  color: #0f172a;
+}
+.settle-signatures {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 24px;
+}
+.settle-sig-box {
+  border: 1px solid #94a3b8;
+  height: 64px;
+  padding: 4px 8px;
+  font-size: 8.5pt;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* ==================================================== */
+/* 瀏覽器列印專用媒體查詢 (@media print)                 */
+/* ==================================================== */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #printableArea, #printableArea * {
+    visibility: visible !important;
+  }
+  #printableArea {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+  .a4-paper-sheet {
+    box-shadow: none !important;
+    width: 100% !important;
+    min-height: auto !important;
+    padding: 0 !important;
+    margin: 0 0 20mm 0 !important;
+    page-break-after: always !important;
+  }
+  @page {
+    size: A4 portrait;
+    margin: 12mm 12mm 12mm 12mm;
+  }
+}

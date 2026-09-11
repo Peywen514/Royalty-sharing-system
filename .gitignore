@@ -1,0 +1,21 @@
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Windows system files
+Thumbs.db
+Desktop.ini
+
+# Temporary upload files & office locks
+uploads/
+~$*.xlsx
+~$*.docx
+
+# Runtime logs
+*.log
