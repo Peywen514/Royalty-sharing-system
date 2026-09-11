@@ -198,6 +198,16 @@ var HEADERS_PPA = [
   "發票抬頭", "統一編號", "預計入帳日期", "寫入時間"
 ];
 
+function doGet(e) {
+  setupHeadersNow();
+  var html = '<div style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif; padding: 30px; line-height: 1.6; max-width: 580px; margin: 40px auto; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); background: white;">'
+    + '<h2 style="color: #1e3a8a; margin-top: 0; font-size: 1.3rem;">🎉 平台對帳請款表（104 / PPA）表頭已更新成功！</h2>'
+    + '<p style="color: #334155; font-size: 14px;">已自動為您的試算表分頁建立深海軍藍/皇家靛紫表頭、凍結首行、欄寬自適應與標籤配色。</p>'
+    + '<p style="color: #64748b; font-size: 13px; margin-bottom: 0;">💡 您現在可以切換回 Google 試算表直接查看套用結果。</p>'
+    + '</div>';
+  return HtmlService.createHtmlOutput(html).setTitle("平台對帳表美化成功");
+}
+
 function doPost(e) {
   var lock = LockService.getScriptLock();
   lock.tryLock(10000);
@@ -214,8 +224,21 @@ function doPost(e) {
     // 取得或自動建立分頁
     var sheet = ss.getSheetByName(targetName) || ss.getSheetByName(targetName + "平台");
     if (!sheet) {
-      sheet = ss.insertSheet(targetName);
+      // 若試算表僅有預設空白「工作表1」，直接更名為目標分頁
+      var defaultSheet = ss.getSheetByName("工作表1") || ss.getSheetByName("Sheet1");
+      if (defaultSheet && defaultSheet.getLastRow() === 0 && ss.getSheets().length === 1) {
+        defaultSheet.setName(targetName);
+        sheet = defaultSheet;
+      } else {
+        sheet = ss.insertSheet(targetName);
+      }
     }
+
+    // 確保目標分頁移至最前方並處於啟用中
+    try {
+      ss.setActiveSheet(sheet);
+      ss.moveActiveSheet(1);
+    } catch (e) {}
 
     // 確保表頭存在並進行高雅視覺美化
     var headers = isPPA ? HEADERS_PPA : HEADERS_104;
@@ -349,6 +372,11 @@ function setupHeadersNow() {
       ensureHeaderAndStyle(s, HEADERS_PPA, "#4338ca");
       formatDataRows(s, HEADERS_PPA.length);
     } else {
+      // 若為「工作表1」且為空，且有其他分頁，則刪除空白「工作表1」；若僅有此頁或有資料，則套用 104 表頭
+      if ((name === "工作表1" || name === "SHEET1") && s.getLastRow() === 0 && sheets.length > 1) {
+        try { ss.deleteSheet(s); } catch (e) {}
+        continue;
+      }
       ensureHeaderAndStyle(s, HEADERS_104, "#1e3a8a");
       formatDataRows(s, HEADERS_104.length);
     }
@@ -379,6 +407,16 @@ var TEACHER_HEADERS = [
   "講師分潤比率", "本期應付講師版稅", "備註說明", "寫入時間"
 ];
 
+function doGet(e) {
+  setupHeadersNow();
+  var html = '<div style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif; padding: 30px; line-height: 1.6; max-width: 580px; margin: 40px auto; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); background: white;">'
+    + '<h2 style="color: #065f46; margin-top: 0; font-size: 1.3rem;">🎉 講師分潤結算表表頭已更新成功！</h2>'
+    + '<p style="color: #334155; font-size: 14px;">已自動為所有講師分頁（侯玉彤、簡志峰等）建立專屬高雅綠色系表頭、凍結首行、欄寬自適應與標籤配色。</p>'
+    + '<p style="color: #64748b; font-size: 13px; margin-bottom: 0;">💡 您現在可以切換回 Google 試算表直接查看套用結果。</p>'
+    + '</div>';
+  return HtmlService.createHtmlOutput(html).setTitle("講師結算表美化成功");
+}
+
 function doPost(e) {
   var lock = LockService.getScriptLock();
   lock.tryLock(10000);
@@ -399,8 +437,19 @@ function doPost(e) {
       // 取得或自動建立該講師專屬分頁
       var sheet = ss.getSheetByName(teacherName);
       if (!sheet) {
-        sheet = ss.insertSheet(teacherName);
+        var defaultSheet = ss.getSheetByName("工作表1") || ss.getSheetByName("Sheet1");
+        if (defaultSheet && defaultSheet.getLastRow() === 0 && ss.getSheets().length === 1) {
+          defaultSheet.setName(teacherName);
+          sheet = defaultSheet;
+        } else {
+          sheet = ss.insertSheet(teacherName);
+        }
       }
+
+      // 確保目標講師分頁啟用
+      try {
+        ss.setActiveSheet(sheet);
+      } catch (e) {}
 
       // 依講師指派專屬綠色系配色
       var themeColor = getTeacherColor(teacherName);
@@ -519,7 +568,12 @@ function setupHeadersNow() {
   var sheets = ss.getSheets();
   for (var i = 0; i < sheets.length; i++) {
     var s = sheets[i];
-    var themeColor = getTeacherColor(s.getName());
+    var name = s.getName();
+    if ((name === "工作表1" || name.toUpperCase() === "SHEET1") && s.getLastRow() === 0 && sheets.length > 1) {
+      try { ss.deleteSheet(s); } catch(e) {}
+      continue;
+    }
+    var themeColor = getTeacherColor(name);
     ensureHeaderAndStyle(s, TEACHER_HEADERS, themeColor);
     formatDataRows(s, TEACHER_HEADERS.length);
   }
@@ -528,4 +582,5 @@ function setupHeadersNow() {
 
 # 相容通用版
 GAS_TEMPLATE_CODE = GAS_PLATFORM_CODE
+
 

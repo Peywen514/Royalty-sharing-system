@@ -603,7 +603,8 @@ async function syncCurrentToGoogleSheets() {
     if (data.success) {
       await importToSystem(true);
       loadHistory();
-      alert(`🎉 ${data.message}`);
+      showToast("Google 試算表同步成功！", "success");
+      alert(`🎉 ${data.message}\n\n💡 貼心提醒：\n1. 數據已寫入試算表下方的【104】或【PPA】分頁（含深藍色/靛紫色精美表頭與首行凍結）。\n2. 講師分潤明細已依老師姓名寫入【侯玉彤】、【簡志峰】等分頁。\n3. 若您的試算表剛開啟時停留在預設的「工作表1」，請點選底部的「104」或講師分頁標籤即可查看！`);
     } else {
       alert(`提示：${data.message || data.error}\n請點選上方「🌐 Google Sheet 自動串聯」分頁設定 Webhook 網址！`);
       switchTab("tab-googlesheets");
@@ -671,6 +672,30 @@ async function runBatchAll() {
   }
 }
 
+// 浮動提示 Toast 訊息
+function showToast(message, type = "info") {
+  let container = document.getElementById("toastContainer");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toastContainer";
+    container.className = "toast-container";
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement("div");
+  toast.className = `custom-toast toast-${type}`;
+  const icon = type === "success" ? "✔" : (type === "error" ? "✖" : "ℹ");
+  toast.innerHTML = `
+    <span class="toast-icon">${icon}</span>
+    <span class="toast-msg">${message}</span>
+  `;
+  container.appendChild(toast);
+  setTimeout(() => toast.classList.add("toast-show"), 10);
+  setTimeout(() => {
+    toast.classList.remove("toast-show");
+    setTimeout(() => toast.remove(), 400);
+  }, 3500);
+}
+
 // 產出檔案列表管理
 function clearOutputFiles() {
   document.getElementById("outputFilesList").innerHTML = "";
@@ -682,6 +707,7 @@ function addOutputFile(fileObj) {
   const list = document.getElementById("outputFilesList");
 
   const safePath = (fileObj.path || "").replace(/\\/g, '/');
+  const fname = fileObj.name || safePath.split('/').pop();
   const docType = fileObj.docType || (fileObj.name.endsWith('.docx') ? 'invoice' : 'settlement');
   const item = document.createElement("div");
   item.className = "output-item";
@@ -697,50 +723,152 @@ function addOutputFile(fileObj) {
       <button class="btn btn-print btn-sm" onclick="openPrintModal({ filePath: '${safePath}', docType: '${docType}' })" title="預覽並直接送至實體影印機列印">
         🖨️ 列印預覽
       </button>
-      <button class="btn btn-secondary btn-sm" onclick="openFilePath('${safePath}')">
+      <button class="btn btn-secondary btn-sm" onclick="openFilePath(this, '${safePath}')" title="使用電腦預設程式開啟 Word / Excel">
         📄 開啟檔案
       </button>
-      <button class="btn btn-secondary btn-sm" onclick="openFileFolder('${safePath}')">
+      <button class="btn btn-secondary btn-sm" onclick="openFileFolder(this, '${safePath}')" title="在檔案總管中開啟所在目錄並反白選取該檔案">
         📂 資料夾
       </button>
+      <a class="btn btn-secondary btn-sm" href="/api/download?file=${encodeURIComponent(safePath)}" download="${fname}" title="直接下載該檔案至瀏覽器下載夾">
+        ⬇️ 下載
+      </a>
     </div>
   `;
   list.appendChild(item);
 }
 
-// 開啟資料夾
-function openCurrentFolder() {
-  fetch("/api/open_folder", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({})
-  });
+// 開啟系統資料夾
+async function openCurrentFolder(btn) {
+  const originalText = btn ? btn.innerHTML : "";
+  if (btn) { btn.innerHTML = "⏳ 開啟中..."; btn.disabled = true; }
+  try {
+    const res = await fetch("/api/open_folder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder_path: "", action: "open_folder" })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || "已在檔案總管開啟系統專案資料夾！", "success");
+      if (btn) btn.innerHTML = "✔ 已開啟";
+    } else {
+      alert("開啟資料夾失敗: " + (data.error || "未知錯誤"));
+      if (btn) btn.innerHTML = originalText;
+    }
+  } catch (err) {
+    alert("連線失敗: " + err.message);
+    if (btn) btn.innerHTML = originalText;
+  } finally {
+    if (btn) {
+      setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 2000);
+    }
+  }
 }
 
-function openPeriodFolder() {
-  fetch("/api/open_folder", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ folder_path: "" })
-  });
+// 開啟月度存檔資料夾
+async function openPeriodFolder(btn) {
+  const originalText = btn ? btn.innerHTML : "";
+  if (btn) { btn.innerHTML = "⏳ 開啟中..."; btn.disabled = true; }
+  const folderTarget = currentPeriodStr || "";
+  try {
+    const res = await fetch("/api/open_folder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder_path: folderTarget, action: "open_folder" })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || `已在檔案總管開啟【${folderTarget}】存檔資料夾！`, "success");
+      if (btn) btn.innerHTML = "✔ 已開啟";
+    } else {
+      alert("開啟存檔資料夾失敗: " + (data.error || "未知錯誤"));
+      if (btn) btn.innerHTML = originalText;
+    }
+  } catch (err) {
+    alert("連線失敗: " + err.message);
+    if (btn) btn.innerHTML = originalText;
+  } finally {
+    if (btn) {
+      setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 2000);
+    }
+  }
 }
 
-function openFilePath(fullPath) {
-  fetch("/api/open_folder", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ folder_path: fullPath })
-  });
+// 開啟單一檔案 (Word / Excel)
+async function openFilePath(btnOrPath, fullPath) {
+  let btn = null;
+  let path = fullPath;
+  if (typeof btnOrPath === "string") {
+    path = btnOrPath;
+  } else {
+    btn = btnOrPath;
+  }
+  if (!path) return;
+
+  const originalText = btn ? btn.innerHTML : "";
+  if (btn) { btn.innerHTML = "⏳ 開啟中..."; btn.disabled = true; }
+
+  try {
+    const res = await fetch("/api/open_folder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder_path: path, action: "open_file" })
+    });
+    const data = await res.json();
+    if (data.success) {
+      const fname = path.split('/').pop();
+      showToast(data.message || `已在電腦中開啟檔案：${fname}`, "success");
+      if (btn) btn.innerHTML = "✔ 已開啟";
+    } else {
+      alert("開啟檔案失敗: " + (data.error || "未知錯誤"));
+      if (btn) btn.innerHTML = originalText;
+    }
+  } catch (err) {
+    alert("連線失敗: " + err.message);
+    if (btn) btn.innerHTML = originalText;
+  } finally {
+    if (btn) {
+      setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 2000);
+    }
+  }
 }
 
-function openFileFolder(fullPath) {
-  const norm = fullPath.replace(/\\/g, '/');
-  const dir = norm.substring(0, norm.lastIndexOf("/"));
-  fetch("/api/open_folder", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ folder_path: dir || fullPath })
-  });
+// 開啟所在目錄並在檔案總管選取檔案
+async function openFileFolder(btnOrPath, fullPath) {
+  let btn = null;
+  let path = fullPath;
+  if (typeof btnOrPath === "string") {
+    path = btnOrPath;
+  } else {
+    btn = btnOrPath;
+  }
+  if (!path) return;
+
+  const originalText = btn ? btn.innerHTML : "";
+  if (btn) { btn.innerHTML = "⏳ 開啟中..."; btn.disabled = true; }
+
+  try {
+    const res = await fetch("/api/open_folder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder_path: path, action: "select_in_folder" })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || `已在檔案總管開啟目錄並選取該檔案！`, "success");
+      if (btn) btn.innerHTML = "✔ 已開啟";
+    } else {
+      alert("開啟目錄失敗: " + (data.error || "未知錯誤"));
+      if (btn) btn.innerHTML = originalText;
+    }
+  } catch (err) {
+    alert("連線失敗: " + err.message);
+    if (btn) btn.innerHTML = originalText;
+  } finally {
+    if (btn) {
+      setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 2000);
+    }
+  }
 }
 
 // ----------------------------------------------------
@@ -1128,8 +1256,9 @@ async function loadHistory() {
             <td><span style="font-size: 0.85rem; color: #334155;">📄 ${fname}</span></td>
             <td class="text-center" style="white-space: nowrap;">
               <button class="btn btn-print btn-sm" onclick="openPrintModal({ type: 'invoice', id: ${inv.id}, filePath: '${(inv.file_path || '').replace(/\\/g, '/')}' })">🖨️ 列印預覽</button>
-              <button class="btn btn-secondary btn-sm" onclick="openFilePath('${(inv.file_path || '').replace(/\\/g, '/')}')">📄 開啟</button>
-              <button class="btn btn-secondary btn-sm" onclick="openFileFolder('${(inv.file_path || '').replace(/\\/g, '/')}')">📂 目錄</button>
+              <button class="btn btn-secondary btn-sm" onclick="openFilePath(this, '${(inv.file_path || '').replace(/\\/g, '/')}')">📄 開啟</button>
+              <button class="btn btn-secondary btn-sm" onclick="openFileFolder(this, '${(inv.file_path || '').replace(/\\/g, '/')}')">📂 目錄</button>
+              <a class="btn btn-secondary btn-sm" href="/api/download?file=${encodeURIComponent((inv.file_path || '').replace(/\\/g, '/'))}" download="${fname}" title="下載 Word 請款單">⬇️ 下載</a>
               <button class="btn btn-secondary btn-sm" style="color: var(--danger); font-weight: 600;" onclick="deleteHistoryItem('invoice', ${inv.id})" title="刪除此筆發票請款單存檔">🗑️ 刪除</button>
             </td>
           `;
@@ -1162,8 +1291,9 @@ async function loadHistory() {
             <td><span style="font-size: 0.85rem; color: #334155;">📊 ${fname}</span></td>
             <td class="text-center" style="white-space: nowrap;">
               <button class="btn btn-print btn-sm" onclick="openPrintModal({ type: 'settlement', id: ${s.id}, filePath: '${(s.excel_path || '').replace(/\\/g, '/')}' })">🖨️ 列印預覽</button>
-              <button class="btn btn-secondary btn-sm" onclick="openFilePath('${(s.excel_path || '').replace(/\\/g, '/')}')">📊 開啟</button>
-              <button class="btn btn-secondary btn-sm" onclick="openFileFolder('${(s.excel_path || '').replace(/\\/g, '/')}')">📂 目錄</button>
+              <button class="btn btn-secondary btn-sm" onclick="openFilePath(this, '${(s.excel_path || '').replace(/\\/g, '/')}')">📊 開啟</button>
+              <button class="btn btn-secondary btn-sm" onclick="openFileFolder(this, '${(s.excel_path || '').replace(/\\/g, '/')}')">📂 目錄</button>
+              <a class="btn btn-secondary btn-sm" href="/api/download?file=${encodeURIComponent((s.excel_path || '').replace(/\\/g, '/'))}" download="${fname}" title="下載 Excel 分潤明細表">⬇️ 下載</a>
               <button class="btn btn-secondary btn-sm" style="color: var(--danger); font-weight: 600;" onclick="deleteHistoryItem('settlement', ${s.id})" title="刪除此筆講師結算紀錄">🗑️ 刪除</button>
             </td>
           `;

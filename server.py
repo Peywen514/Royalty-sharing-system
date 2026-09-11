@@ -128,6 +128,37 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
             self._send_json(cfg)
             return
 
+        elif path == "/api/download":
+            qs = urllib.parse.parse_qs(parsed.query)
+            target_file = qs.get("file", [""])[0]
+            if not target_file:
+                self._send_json({"error": "未提供檔案參數"}, status=400)
+                return
+            if not os.path.isabs(target_file):
+                target_file = os.path.join(BASE_DIR, target_file)
+            target_file = os.path.normpath(target_file)
+            
+            if not os.path.exists(target_file) or not os.path.isfile(target_file):
+                self._send_json({"error": f"找不到下載檔案: {target_file}"}, status=404)
+                return
+                
+            try:
+                fname = os.path.basename(target_file)
+                encoded_fname = urllib.parse.quote(fname)
+                with open(target_file, "rb") as f:
+                    content = f.read()
+                
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/octet-stream')
+                self.send_header('Content-Length', str(len(content)))
+                self.send_header('Content-Disposition', f'attachment; filename="{encoded_fname}"; filename*=UTF-8\'\'{encoded_fname}')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(content)
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=500)
+            return
+
         elif path == "/api/printers":
             default_printer = ""
             printers = []
@@ -419,17 +450,57 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                 self._send_json({"error": str(e)}, status=500)
             return
 
-        elif path == "/api/open_folder":
-            target = req_data.get("folder_path") or BASE_DIR
+        elif path == "/api/open_folder" or path == "/api/open_file":
+            import subprocess
+            target = req_data.get("folder_path") or req_data.get("path") or BASE_DIR
+            action = req_data.get("action", "auto") # "open_file", "select_in_folder", "open_folder", "auto"
+            
+            if not os.path.isabs(target):
+                target = os.path.join(BASE_DIR, target)
             target = os.path.normpath(target)
-            if os.path.exists(target):
-                os.startfile(target)
-                self._send_json({"success": True})
-            elif os.path.exists(os.path.dirname(target)):
-                os.startfile(os.path.dirname(target))
-                self._send_json({"success": True})
-            else:
-                self._send_json({"error": f"路徑不存在: {target}"}, status=400)
+            
+            try:
+                if action == "select_in_folder" or (action == "open_folder" and os.path.isfile(target)):
+                    # 在檔案總管開啟資料夾並反白選取該檔案
+                    if os.path.exists(target):
+                        subprocess.Popen(f'explorer.exe /select,"{target}"', shell=False)
+                        self._send_json({"success": True, "message": f"已在檔案總管開啟並選取：{os.path.basename(target)}"})
+                    elif os.path.exists(os.path.dirname(target)):
+                        subprocess.Popen(f'explorer.exe "{os.path.dirname(target)}"', shell=False)
+                        self._send_json({"success": True, "message": f"已開啟資料夾：{os.path.dirname(target)}"})
+                    else:
+                        self._send_json({"error": f"找不到指定路徑: {target}"}, status=404)
+                    return
+                
+                elif action == "open_file" or (action == "auto" and os.path.isfile(target)):
+                    # 使用預設軟體開啟檔案 (Word / Excel 等)
+                    if not os.path.exists(target):
+                        self._send_json({"error": f"檔案不存在: {target}"}, status=404)
+                        return
+                    
+                    try:
+                        subprocess.Popen(['cmd.exe', '/c', 'start', '', target], shell=False)
+                    except Exception:
+                        os.startfile(target)
+                    self._send_json({"success": True, "message": f"已在電腦開啟檔案：{os.path.basename(target)}"})
+                    return
+                
+                else:
+                    # 開啟資料夾 (open_folder)
+                    if os.path.isdir(target):
+                        subprocess.Popen(f'explorer.exe "{target}"', shell=False)
+                        self._send_json({"success": True, "message": f"已在檔案總管開啟資料夾：{os.path.basename(target)}"})
+                    elif os.path.exists(os.path.dirname(target)):
+                        subprocess.Popen(f'explorer.exe "{os.path.dirname(target)}"', shell=False)
+                        self._send_json({"success": True, "message": f"已開啟所在資料夾：{os.path.dirname(target)}"})
+                    elif os.path.exists(BASE_DIR):
+                        subprocess.Popen(f'explorer.exe "{BASE_DIR}"', shell=False)
+                        self._send_json({"success": True, "message": f"已開啟系統專案目錄"})
+                    else:
+                        self._send_json({"error": f"路徑不存在: {target}"}, status=404)
+                    return
+            except Exception as e:
+                self._send_json({"error": f"開啟操作失敗: {str(e)}"}, status=500)
             return
 
         elif path == "/api/platform/save":

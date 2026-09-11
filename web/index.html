@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>線上課程版稅銷售與請款結算系統</title>
-  <link rel="stylesheet" href="style.css?v=3.0">
+  <link rel="stylesheet" href="style.css?v=3.3">
 </head>
 <body>
   <!-- Header -->
@@ -17,7 +17,7 @@
     </div>
     <div style="display: flex; gap: 0.8rem; align-items: center;">
       <span class="header-badge" id="systemStatus">🟢 系統連線正常</span>
-      <button class="btn btn-secondary btn-sm" onclick="openCurrentFolder()">📂 開啟系統資料夾</button>
+      <button class="btn btn-secondary btn-sm" onclick="openCurrentFolder(this)">📂 開啟系統資料夾</button>
     </div>
   </header>
 
@@ -207,7 +207,7 @@
           <span>📁 已產出之月度存檔文件 (115年X月)</span>
           <div style="display: flex; gap: 0.6rem; align-items: center;">
             <button class="btn btn-print btn-sm" onclick="openPrintModal()" style="background: #0284c7; color: white; font-weight: 600;">🖨️ 列印已產出文件 (連接影印機)</button>
-            <button class="btn btn-secondary btn-sm" onclick="openPeriodFolder()">📂 開啟月度存檔資料夾</button>
+            <button class="btn btn-secondary btn-sm" onclick="openPeriodFolder(this)">📂 開啟月度存檔資料夾</button>
           </div>
         </div>
         <div id="outputFilesList">
@@ -573,6 +573,6 @@
     <p style="margin-top: 0.3rem; font-size: 0.75rem;">依據會計準則、平台商務合約與講師分潤協議設計 &bull; 支援 104、Hahow、PPA 等多平台線上課程</p>
   </footer>
 
-  <script src="app.js?v=3.2"></script>
+  <script src="app.js?v=3.3"></script>
 </body>
 </html>
