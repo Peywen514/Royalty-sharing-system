@@ -723,12 +723,6 @@ function addOutputFile(fileObj) {
       <button class="btn btn-print btn-sm" onclick="openPrintModal({ filePath: '${safePath}', docType: '${docType}' })" title="預覽並直接送至實體影印機列印">
         🖨️ 列印預覽
       </button>
-      <button class="btn btn-secondary btn-sm" onclick="openFilePath(this, '${safePath}')" title="使用電腦預設程式開啟 Word / Excel">
-        📄 開啟檔案
-      </button>
-      <button class="btn btn-secondary btn-sm" onclick="openFileFolder(this, '${safePath}')" title="在檔案總管中開啟所在目錄並反白選取該檔案">
-        📂 資料夾
-      </button>
       <a class="btn btn-secondary btn-sm" href="/api/download?file=${encodeURIComponent(safePath)}" download="${fname}" title="直接下載該檔案至瀏覽器下載夾">
         ⬇️ 下載
       </a>
@@ -769,7 +763,11 @@ async function openCurrentFolder(btn) {
 async function openPeriodFolder(btn) {
   const originalText = btn ? btn.innerHTML : "";
   if (btn) { btn.innerHTML = "⏳ 開啟中..."; btn.disabled = true; }
-  const folderTarget = currentPeriodStr || "";
+  
+  const rocYear = document.getElementById("selRocYear") ? document.getElementById("selRocYear").value : "115";
+  const month = document.getElementById("selMonth") ? document.getElementById("selMonth").value : "8";
+  const folderTarget = currentPeriodStr || `${rocYear}年${month}月`;
+  
   try {
     const res = await fetch("/api/open_folder", {
       method: "POST",
@@ -1829,8 +1827,8 @@ function buildInvoiceDocHtml(inv) {
       <tr>
         <th rowspan="2">種類</th>
         <td colspan="5">
-          <span class="invoice-checkbox">☑</span>發票：
-          <span class="invoice-checkbox">☑</span><strong>有統編，請填統編：${inv.tax_id}</strong>
+          <span class="invoice-checkbox">☒</span>發票：
+          <span class="invoice-checkbox">☒</span><strong>有統編，請填統編：${inv.tax_id}</strong>
         </td>
         <td colspan="2">
           <span class="invoice-checkbox">☐</span>無統編
@@ -1843,7 +1841,7 @@ function buildInvoiceDocHtml(inv) {
       </tr>
       <tr>
         <th rowspan="3">收入</th>
-        <td><span class="invoice-checkbox">☑</span><strong>版稅收入</strong></td>
+        <td><span class="invoice-checkbox">☐</span>版稅收入</td>
         <td><span class="invoice-checkbox">☐</span>授權收入</td>
         <td><span class="invoice-checkbox">☐</span>會員收入</td>
         <td><span class="invoice-checkbox">☐</span>專案收入</td>
@@ -1860,13 +1858,13 @@ function buildInvoiceDocHtml(inv) {
         <td><span class="invoice-checkbox">☐</span>測驗收入</td>
         <td><span class="invoice-checkbox">☐</span>換證收入</td>
         <td><span class="invoice-checkbox">☐</span>成績複查</td>
-        <td><span class="invoice-checkbox">☐</span>其他收入</td>
+        <td style="font-weight: bold;"><span class="invoice-checkbox">☒</span><strong>其他收入</strong></td>
         <td colspan="3"></td>
       </tr>
       <tr>
         <th>品名</th>
         <td colspan="7">
-          (請詳填品名) <strong>${inv.item_name || '線上課程訂閱'}</strong>
+          (請詳填品名)<br><strong>${inv.item_name || '線上課程訂閱'}</strong>
         </td>
       </tr>
     </table>
@@ -1875,22 +1873,70 @@ function buildInvoiceDocHtml(inv) {
     <table class="invoice-doc-table">
       <colgroup>
         <col style="width: 14%;">
-        <col style="width: 36%;">
-        <col style="width: 14%;">
-        <col style="width: 36%;">
+        <col style="width: 26%;">
+        <col style="width: 6%;">
+        <col style="width: 54%;">
       </colgroup>
-      <tr>
-        <th>已入帳</th>
-        <td>　　年　　月　　日</td>
-        <th>入帳方式</th>
-        <td>1. 匯款 (合庫北 / 一銀 / 國泰世華)</td>
-      </tr>
-      <tr>
-        <th>未入帳</th>
-        <td colspan="3" style="font-weight: bold; color: #1e3a8a; font-size: 10pt;">
-          ${depStr}
-        </td>
-      </tr>
+      <thead>
+        <tr>
+          <th style="text-align: center;">種類</th>
+          <th style="text-align: center;">入帳日</th>
+          <th colspan="2" style="text-align: center;">入帳方式</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td rowspan="4" style="text-align: center; vertical-align: middle;">
+            <span class="invoice-checkbox">☐</span>已入帳
+          </td>
+          <td rowspan="4" style="text-align: center; vertical-align: middle; color: #475569; letter-spacing: 2px;">
+            &nbsp;&nbsp;&nbsp;&nbsp;年&nbsp;&nbsp;&nbsp;&nbsp;月&nbsp;&nbsp;&nbsp;&nbsp;日
+          </td>
+          <td style="text-align: center; font-weight: bold; vertical-align: middle;">1</td>
+          <td style="padding: 4px 8px; line-height: 1.6;">
+            <span class="invoice-checkbox">☐</span>合庫北&nbsp;&nbsp;
+            <span class="invoice-checkbox">☐</span>合庫中&nbsp;&nbsp;
+            <span class="invoice-checkbox">☐</span>合庫南&nbsp;&nbsp;
+            <span class="invoice-checkbox">☐</span>合庫 CWT&nbsp;&nbsp;
+            <span class="invoice-checkbox">☐</span>合庫 6922
+          </td>
+        </tr>
+        <tr>
+          <td style="text-align: center; font-weight: bold; vertical-align: middle;">1</td>
+          <td style="padding: 4px 8px; line-height: 1.6;">
+            <span class="invoice-checkbox" style="font-weight: bold;">☒</span><strong>一銀</strong>&nbsp;&nbsp;
+            <span class="invoice-checkbox">☐</span>國泰世華&nbsp;&nbsp;
+            <span class="invoice-checkbox">☐</span>現金&nbsp;&nbsp;
+            <span class="invoice-checkbox">☐</span>支票
+          </td>
+        </tr>
+        <tr>
+          <td style="text-align: center; font-weight: bold; vertical-align: middle;">2</td>
+          <td style="padding: 4px 8px; line-height: 1.6;">
+            <span class="invoice-checkbox">☐</span>ATM&nbsp;&nbsp;
+            <span class="invoice-checkbox">☐</span>信用卡&nbsp;&nbsp;
+            <span class="invoice-checkbox">☐</span>IBON&nbsp;&nbsp;
+            <span class="invoice-checkbox">☐</span>LINE
+          </td>
+        </tr>
+        <tr>
+          <td style="text-align: center; font-weight: bold; vertical-align: middle;">2</td>
+          <td style="padding: 4px 8px; line-height: 1.6;">
+            虛擬帳號：<span style="display: inline-block; width: 140px; border-bottom: 1px dotted #94a3b8;">&nbsp;</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="text-align: center; vertical-align: middle; font-weight: bold;">
+            <span class="invoice-checkbox">☒</span>未入帳
+          </td>
+          <td style="text-align: center; font-weight: bold; color: #0f172a;">
+            ${depStr}
+          </td>
+          <td colspan="2" style="text-align: left; padding-left: 12px; color: #475569;">
+            (預計)
+          </td>
+        </tr>
+      </tbody>
     </table>
 
     <div style="font-weight: bold; margin-bottom: 4px; font-size: 10pt; color: #111;">4. 簽核</div>

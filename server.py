@@ -252,6 +252,7 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
             apply_date = req_data.get("apply_date")
             expected_deposit = req_data.get("expected_deposit_date")
             platform_id = req_data.get("platform_id", "104")
+            item_name = req_data.get("item_name")
             
             try:
                 gen = InvoiceDocGenerator()
@@ -271,7 +272,8 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                     period_roc_year=roc_year,
                     period_month=month,
                     apply_date=apply_date,
-                    expected_deposit_date=expected_deposit
+                    expected_deposit_date=expected_deposit,
+                    item_name=item_name
                 )
                 
                 # 記錄到 DB
@@ -463,10 +465,13 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                 if action == "select_in_folder" or (action == "open_folder" and os.path.isfile(target)):
                     # 在檔案總管開啟資料夾並反白選取該檔案
                     if os.path.exists(target):
-                        subprocess.Popen(f'explorer.exe /select,"{target}"', shell=False)
+                        subprocess.Popen(['explorer.exe', f'/select,{target}'])
                         self._send_json({"success": True, "message": f"已在檔案總管開啟並選取：{os.path.basename(target)}"})
                     elif os.path.exists(os.path.dirname(target)):
-                        subprocess.Popen(f'explorer.exe "{os.path.dirname(target)}"', shell=False)
+                        try:
+                            os.startfile(os.path.dirname(target))
+                        except Exception:
+                            subprocess.Popen(['explorer.exe', os.path.dirname(target)])
                         self._send_json({"success": True, "message": f"已開啟資料夾：{os.path.dirname(target)}"})
                     else:
                         self._send_json({"error": f"找不到指定路徑: {target}"}, status=404)
@@ -479,25 +484,22 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                         return
                     
                     try:
-                        subprocess.Popen(['cmd.exe', '/c', 'start', '', target], shell=False)
-                    except Exception:
                         os.startfile(target)
+                    except Exception:
+                        subprocess.Popen(['cmd.exe', '/c', 'start', '', target])
                     self._send_json({"success": True, "message": f"已在電腦開啟檔案：{os.path.basename(target)}"})
                     return
                 
                 else:
                     # 開啟資料夾 (open_folder)
-                    if os.path.isdir(target):
-                        subprocess.Popen(f'explorer.exe "{target}"', shell=False)
-                        self._send_json({"success": True, "message": f"已在檔案總管開啟資料夾：{os.path.basename(target)}"})
-                    elif os.path.exists(os.path.dirname(target)):
-                        subprocess.Popen(f'explorer.exe "{os.path.dirname(target)}"', shell=False)
-                        self._send_json({"success": True, "message": f"已開啟所在資料夾：{os.path.dirname(target)}"})
-                    elif os.path.exists(BASE_DIR):
-                        subprocess.Popen(f'explorer.exe "{BASE_DIR}"', shell=False)
-                        self._send_json({"success": True, "message": f"已開啟系統專案目錄"})
-                    else:
-                        self._send_json({"error": f"路徑不存在: {target}"}, status=404)
+                    if not os.path.exists(target):
+                        os.makedirs(target, exist_ok=True)
+                    
+                    try:
+                        os.startfile(target)
+                    except Exception:
+                        subprocess.Popen(['explorer.exe', target])
+                    self._send_json({"success": True, "message": f"已在檔案總管開啟資料夾：{os.path.basename(target)}"})
                     return
             except Exception as e:
                 self._send_json({"error": f"開啟操作失敗: {str(e)}"}, status=500)

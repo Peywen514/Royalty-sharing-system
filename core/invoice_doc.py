@@ -131,8 +131,95 @@ class InvoiceDocGenerator:
             if bold is not None:
                 p.runs[0].bold = bold
 
+    def _update_apply_date(self, cell, apply_date_str, roc_y=None, m_val=None, d_val=None):
+        """更新申請日期 (保留原欄位格式、字型與大小)"""
+        if not (roc_y and m_val and d_val):
+            apply_date_str, roc_y, m_val, d_val = self.parse_roc_date(apply_date_str)
+        
+        y_str = str(roc_y) if roc_y else "115"
+        m_str = f"{m_val:02d}" if m_val else "09"
+        d_str = f"{d_val:02d}" if d_val else "03"
+        
+        if cell.paragraphs and cell.paragraphs[0].runs:
+            runs = cell.paragraphs[0].runs
+            if any(r.text == "年" for r in runs):
+                for r in runs:
+                    if r.text in ["11", "114", "115", "116"]:
+                        r.text = y_str[:2]
+                    elif r.text in ["4", "5", "6", "7"] and runs.index(r) < 7:
+                        r.text = y_str[2:] if len(y_str) > 2 else ""
+                    elif r.text in ["0", "1"] and 5 <= runs.index(r) <= 10:
+                        r.text = m_str[0]
+                    elif r.text in ["8", "9", "0", "1", "2"] and 7 <= runs.index(r) <= 11:
+                        r.text = m_str[1]
+                    elif r.text in ["03", "01", "11", "15", "20", "30", "31"] or (len(r.text) == 2 and r.text.isdigit()):
+                        r.text = d_str
+            else:
+                self._set_cell_text(cell, f"{y_str}年{m_str}月{d_str}日")
+        else:
+            self._set_cell_text(cell, f"{y_str}年{m_str}月{d_str}日")
+
+    def _update_title(self, cell, title):
+        """更新抬頭，保留原粗體、字型與字級"""
+        if cell.paragraphs and cell.paragraphs[0].runs:
+            cell.paragraphs[0].runs[0].text = str(title)
+            for r in cell.paragraphs[0].runs[1:]:
+                r.text = ""
+        else:
+            self._set_cell_text(cell, str(title), bold=True)
+
+    def _update_amount(self, cell, amount_str):
+        """更新金額，保留原粗體、字型與字級"""
+        if cell.paragraphs and cell.paragraphs[0].runs:
+            cell.paragraphs[0].runs[0].text = amount_str
+            for r in cell.paragraphs[0].runs[1:]:
+                r.text = ""
+        else:
+            self._set_cell_text(cell, amount_str, bold=True)
+
+    def _update_tax_id(self, cell, tax_id):
+        """更新統一編號，保留前方之 FORMCHECKBOX 核取方塊與標籤"""
+        if cell.paragraphs and cell.paragraphs[0].runs:
+            runs = cell.paragraphs[0].runs
+            updated = False
+            for r in reversed(runs):
+                if r.text.strip() and r.text.strip().isdigit():
+                    r.text = str(tax_id)
+                    updated = True
+                    break
+            if not updated:
+                runs[-1].text = str(tax_id)
+        else:
+            self._set_cell_text(cell, f"有統編，請填統編：{tax_id}")
+
+    def _update_item_name(self, cell, item_name):
+        """更新品名，保留 '(請詳填品名)' 提示與原格式"""
+        if not item_name:
+            return
+        if len(cell.paragraphs) > 1:
+            if cell.paragraphs[1].runs:
+                cell.paragraphs[1].runs[0].text = str(item_name)
+                for r in cell.paragraphs[1].runs[1:]:
+                    r.text = ""
+            else:
+                cell.paragraphs[1].text = str(item_name)
+
+    def _update_expected_deposit_date(self, cell, date_str):
+        """更新預計入帳日期，保留 '(預計)' 標籤與原字型"""
+        clean_date = date_str.replace("(預計)", "").strip()
+        if cell.paragraphs and cell.paragraphs[0].runs:
+            runs = cell.paragraphs[0].runs
+            if len(runs) >= 5:
+                runs[4].text = clean_date
+                for r in runs[5:]:
+                    r.text = ""
+            else:
+                cell.paragraphs[0].text = f"(預計) {clean_date}"
+        else:
+            self._set_cell_text(cell, f"(預計) {clean_date}")
+
     def generate(self, title, tax_id, amount, period_roc_year=115, period_month=8, 
-                 apply_date=None, expected_deposit_date=None, output_dir=None, custom_filename=None):
+                 apply_date=None, expected_deposit_date=None, item_name=None, output_dir=None, custom_filename=None):
         """
         自動填寫並生成請款單 Word 文件
         :param title: 抬頭 (例如 一零四資訊科技股份有限公司)
@@ -142,6 +229,7 @@ class InvoiceDocGenerator:
         :param period_month: 銷售月份 (如 8)
         :param apply_date: 申請日期 (若為 None 則自動計算次月3日)
         :param expected_deposit_date: 預計入帳日期 (若為 None 則自動計算下個月底)
+        :param item_name: 品名 (預設為 線上課程訂閱)
         :param output_dir: 另存目錄 (預設為系統月份專屬目錄)
         :param custom_filename: 自訂檔名
         :return: 生成的檔案絕對路徑
@@ -152,11 +240,12 @@ class InvoiceDocGenerator:
         doc = docx.Document(self.template_path)
 
         # 1. 申請日期與隔月底入帳日期計算
+        roc_y, m_val, d_val = None, None, None
         if apply_date:
-            apply_date, roc_y, m_val, _ = self.parse_roc_date(apply_date)
+            apply_date, roc_y, m_val, d_val = self.parse_roc_date(apply_date)
         else:
             apply_date = self.calc_apply_date(period_roc_year, period_month, day=3)
-            roc_y, m_val = period_roc_year, period_month + 1
+            roc_y, m_val, d_val = period_roc_year, period_month + 1, 3
         
         if not expected_deposit_date:
             expected_deposit_date = self.calc_deposit_date_from_apply_date(
@@ -175,26 +264,26 @@ class InvoiceDocGenerator:
         amount_int = int(round(float(amount)))
         amount_str = f"NT${amount_int:,}"
 
-        # 3. 統編文字
-        tax_id_str = f"有統編，請填統編：{tax_id}"
-
-        # 4. 寫入 Table 0 (基本資料)
+        # 3. 寫入 Table 0 (基本資料)
         # 申請日期: Table 0, Row 0, Col 3
-        self._set_cell_text(doc.tables[0].rows[0].cells[3], apply_date)
+        self._update_apply_date(doc.tables[0].rows[0].cells[3], apply_date, roc_y, m_val, d_val)
 
-        # 5. 寫入 Table 1 (開立資料)
+        # 4. 寫入 Table 1 (開立資料)
         # 抬頭: Table 1, Row 0, Col 1
-        self._set_cell_text(doc.tables[1].rows[0].cells[1], title, bold=True)
+        self._update_title(doc.tables[1].rows[0].cells[1], title)
         # 金額: Table 1, Row 0, Col 7
-        self._set_cell_text(doc.tables[1].rows[0].cells[7], amount_str, bold=True)
-        # 統編: Table 1, Row 1, Col 2
-        self._set_cell_text(doc.tables[1].rows[1].cells[2], tax_id_str)
+        self._update_amount(doc.tables[1].rows[0].cells[7], amount_str)
+        # 統編: Table 1, Row 1, Col 2 (保留核取方塊)
+        self._update_tax_id(doc.tables[1].rows[1].cells[2], tax_id)
+        # 品名: Table 1, Row 6, Col 1
+        if item_name:
+            self._update_item_name(doc.tables[1].rows[6].cells[1], item_name)
 
-        # 6. 寫入 Table 2 (入帳資料)
+        # 5. 寫入 Table 2 (入帳資料)
         # 未入帳預計日: Table 2, Row 5, Col 1
-        self._set_cell_text(doc.tables[2].rows[5].cells[1], expected_deposit_str)
+        self._update_expected_deposit_date(doc.tables[2].rows[5].cells[1], expected_deposit_str)
 
-        # 7. 決定儲存路徑
+        # 6. 決定儲存路徑
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         period_str = f"{period_roc_year}年{period_month}月"
         if not output_dir:
