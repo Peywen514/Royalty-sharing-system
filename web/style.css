@@ -557,42 +557,64 @@ body {
   min-height: 297mm;
   background: white;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
-  padding: 15mm 18mm;
+  padding: 12.7mm 12.7mm;
   box-sizing: border-box;
   color: #111827;
-  font-family: "標楷體", "Microsoft JhengHei", "新細明體", sans-serif;
+  font-family: "新細明體", "PMingLiU", "Times New Roman", serif;
   position: relative;
   page-break-after: always;
 }
 
 /* 發票請款單表格樣式 */
+.invoice-tag-box {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2.16cm;
+  height: 0.93cm;
+  border: 1px solid #111827;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14pt;
+  font-weight: bold;
+  font-family: "新細明體", "PMingLiU", serif;
+  background-color: #ffffff;
+}
 .invoice-doc-title {
   text-align: center;
-  font-size: 15pt;
+  font-size: 14pt;
   font-weight: bold;
   letter-spacing: 1px;
   margin-bottom: 2px;
 }
 .invoice-doc-subtitle {
   text-align: center;
-  font-size: 18pt;
+  font-size: 14pt;
   font-weight: bold;
-  letter-spacing: 5px;
+  letter-spacing: 4px;
   margin-bottom: 12px;
+}
+.invoice-section-title {
+  font-weight: bold;
+  font-size: 11pt;
+  color: #111827;
+  margin-bottom: 3px;
+  margin-top: 8px;
 }
 .invoice-doc-table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 12px;
-  font-size: 9.5pt;
+  margin-bottom: 4px;
+  font-size: 11pt;
 }
 .invoice-doc-table th, .invoice-doc-table td {
   border: 1px solid #111827;
-  padding: 5px 8px;
+  padding: 4px 6px;
   vertical-align: middle;
 }
 .invoice-doc-table th {
-  background-color: #f8fafc;
+  background-color: #ffffff;
   text-align: center;
   font-weight: bold;
 }
@@ -602,7 +624,7 @@ body {
   margin-right: 2px;
 }
 .invoice-doc-table td.no-padding {
-  padding: 4px 6px !important;
+  padding: 2px 4px !important;
 }
 .borderless-grid-table, .borderless-grid-table td {
   border: none !important;
@@ -610,11 +632,26 @@ body {
 .dashed-table, .dashed-table th, .dashed-table td {
   border: 1px dashed #111827 !important;
 }
-.invoice-notes {
-  font-size: 8.5pt;
-  color: #1f2937;
+.invoice-item-desc {
+  font-size: 10pt;
+  color: #111827;
+  padding-left: 12pt;
   line-height: 1.5;
-  margin-top: 10px;
+  margin-top: 3px;
+  margin-bottom: 8px;
+}
+.invoice-notes {
+  font-size: 9.5pt;
+  color: #111827;
+  line-height: 1.65;
+  margin-top: 12px;
+}
+.invoice-footer-ver {
+  text-align: right;
+  color: #808080;
+  font-size: 12pt;
+  margin-top: 12px;
+  font-family: "新細明體", "PMingLiU", "Times New Roman", serif;
 }
 
 /* 講師版稅明細 Excel 表格樣式 */
@@ -695,7 +732,7 @@ body {
   }
   @page {
     size: A4 portrait;
-    margin: 12mm 12mm 12mm 12mm;
+    margin: 12.7mm 12.7mm 12.7mm 12.7mm;
   }
 }
 
