@@ -202,7 +202,13 @@ class TeacherSettlement:
 
         filename = f"{platform_name}版稅明細-{period_str}({teacher_name}老師).xlsx"
         save_path = os.path.join(output_dir, filename)
-        wb.save(save_path)
+        try:
+            wb.save(save_path)
+        except PermissionError:
+            raise PermissionError(
+                f"檔案儲存失敗：【{filename}】目前正被 Microsoft Excel 開啟佔用中！\n\n"
+                f"👉 解決方法：請先將電腦中開啟的 Excel 講師分潤明細檔案存檔並關閉，然後再點擊一次即可！"
+            )
         return save_path
 
 if __name__ == "__main__":

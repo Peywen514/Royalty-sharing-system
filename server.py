@@ -85,9 +85,19 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Range, Authorization')
+        self.send_header('MS-Author-Via', 'DAV')
+        self.send_header('DAV', '1, 2')
+        self.send_header('Allow', 'GET, HEAD, OPTIONS, POST')
         self.end_headers()
+
+    def do_HEAD(self):
+        self._head_only = True
+        try:
+            self.do_GET()
+        finally:
+            self._head_only = False
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -131,6 +141,42 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
             self._send_json(cfg)
             return
 
+        elif path.startswith("/docs/"):
+            rel_path = urllib.parse.unquote(path[6:])
+            target_file = os.path.normpath(os.path.join(BASE_DIR, rel_path))
+            if not os.path.exists(target_file) or not os.path.isfile(target_file):
+                self._send_json({"error": f"找不到指定文件: {os.path.basename(target_file)}"}, status=404)
+                return
+            try:
+                fname = os.path.basename(target_file)
+                encoded_fname = urllib.parse.quote(fname)
+                with open(target_file, "rb") as f:
+                    content = f.read()
+
+                ext = os.path.splitext(fname)[1].lower()
+                if ext == ".docx":
+                    mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                elif ext in [".xlsx", ".xls"]:
+                    mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                else:
+                    mime = "application/octet-stream"
+
+                self.send_response(200)
+                self.send_header('Content-Type', mime)
+                self.send_header('Content-Length', str(len(content)))
+                self.send_header('Content-Disposition', f'inline; filename="{encoded_fname}"; filename*=UTF-8\'\'{encoded_fname}')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+                self.send_header('MS-Author-Via', 'DAV')
+                self.send_header('DAV', '1, 2')
+                self.send_header('Allow', 'GET, HEAD, OPTIONS, POST')
+                self.end_headers()
+                if not getattr(self, "_head_only", False):
+                    self.wfile.write(content)
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=500)
+            return
+
         elif path == "/api/download":
             qs = urllib.parse.parse_qs(parsed.query)
             target_file = qs.get("file", [""])[0]
@@ -150,9 +196,17 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                 encoded_fname = urllib.parse.quote(fname)
                 with open(target_file, "rb") as f:
                     content = f.read()
+
+                ext = os.path.splitext(fname)[1].lower()
+                if ext == ".docx":
+                    mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                elif ext in [".xlsx", ".xls"]:
+                    mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                else:
+                    mime = "application/octet-stream"
                 
                 self.send_response(200)
-                self.send_header('Content-Type', 'application/octet-stream')
+                self.send_header('Content-Type', mime)
                 self.send_header('Content-Length', str(len(content)))
                 self.send_header('Content-Disposition', f'attachment; filename="{encoded_fname}"; filename*=UTF-8\'\'{encoded_fname}')
                 self.send_header('Access-Control-Allow-Origin', '*')
@@ -303,7 +357,10 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                     "dir": os.path.dirname(save_path)
                 })
             except Exception as e:
-                self._send_json({"error": str(e)}, status=500)
+                err_msg = str(e)
+                if "Permission denied" in err_msg or "Errno 13" in err_msg:
+                    err_msg = "檔案儲存失敗：請先關閉電腦中已開啟的 Word《發票請款申請單》檔案，然後再點擊產出！"
+                self._send_json({"error": err_msg}, status=500)
             return
 
         elif path == "/api/settle_teacher":
@@ -356,7 +413,10 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                     "teachers": generated_files
                 })
             except Exception as e:
-                self._send_json({"error": str(e)}, status=500)
+                err_msg = str(e)
+                if "Permission denied" in err_msg or "Errno 13" in err_msg:
+                    err_msg = "檔案儲存失敗：請先關閉電腦中已開啟的 Excel 講師分潤明細檔案，然後再點擊結算！"
+                self._send_json({"error": err_msg}, status=500)
             return
 
         elif path == "/api/batch_run":
@@ -452,7 +512,14 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                     "output_dir": os.path.join(BASE_DIR, period_str)
                 })
             except Exception as e:
-                self._send_json({"error": str(e)}, status=500)
+                err_msg = str(e)
+                if "Permission denied" in err_msg or "Errno 13" in err_msg:
+                    err_msg = (
+                        "檔案儲存失敗（檔案已被開啟佔用）：\n\n"
+                        "系統偵測到該月份的 Word 請款單或 Excel 結算表檔案目前正被 Microsoft Office 開啟鎖定中。\n\n"
+                        "👉 解決方法：請先將已開啟的 Word 或 Excel 檔案存檔並關閉，然後再點擊一次「🌟 一鍵全自動月結」即可順利完成！"
+                    )
+                self._send_json({"error": err_msg}, status=500)
             return
 
         elif path == "/api/open_folder" or path == "/api/open_file":
@@ -483,14 +550,34 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                 elif action == "open_file" or (action == "auto" and os.path.isfile(target)):
                     # 使用預設軟體開啟檔案 (Word / Excel 等)
                     if not os.path.exists(target):
-                        self._send_json({"error": f"檔案不存在: {target}"}, status=404)
+                        self._send_json({"error": f"檔案尚未產出或不存在: {os.path.basename(target)}"}, status=404)
                         return
                     
+                    opened = False
+                    # 1. 寫入專屬本機啟動腳本 open_doc.bat 並透過互動工作階段觸發
+                    try:
+                        bat_path = os.path.join(BASE_DIR, "open_doc.bat")
+                        with open(bat_path, "w", encoding="utf-8") as bf:
+                            bf.write(f'@echo off\r\nchcp 65001 >nul\r\nstart "" "{target}"\r\n')
+                        subprocess.run(['schtasks', '/run', '/tn', 'RoyaltySystemOpenDoc'], capture_output=True, timeout=3)
+                        opened = True
+                    except Exception:
+                        pass
+
+                    # 2. 系統原生 startfile 管道
                     try:
                         os.startfile(target)
+                        opened = True
+                    except Exception as e_start:
+                        pass
+                    
+                    # 3. 同時呼叫 Windows 檔案總管選取該檔案，確保前台 100% 立即跳出視窗
+                    try:
+                        subprocess.Popen(['explorer.exe', f'/select,{target}'])
                     except Exception:
-                        subprocess.Popen(['cmd.exe', '/c', 'start', '', target])
-                    self._send_json({"success": True, "message": f"已在電腦開啟檔案：{os.path.basename(target)}"})
+                        pass
+
+                    self._send_json({"success": True, "message": f"已在電腦呼叫開啟並在資料夾選取：{os.path.basename(target)}"})
                     return
                 
                 else:

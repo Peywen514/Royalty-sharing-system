@@ -13,6 +13,17 @@ document.addEventListener("DOMContentLoaded", () => {
   loadGoogleSheetsConfig();
   loadHistory();
   loadPrinters();
+  
+  const urlParams = new URLSearchParams(window.location.search);
+  const tabParam = urlParams.get("tab");
+  if (tabParam && document.getElementById(tabParam)) {
+    switchTab(tabParam);
+  } else if (window.location.hash) {
+    const targetTab = window.location.hash.replace("#", "");
+    if (document.getElementById(targetTab)) {
+      switchTab(targetTab);
+    }
+  }
 });
 
 // 切換分頁
@@ -20,9 +31,13 @@ function switchTab(tabId) {
   document.querySelectorAll(".nav-tab").forEach(t => t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
   
-  const currentTabElem = Array.from(document.querySelectorAll(".nav-tab")).find(el => el.getAttribute("onclick").includes(tabId));
+  const currentTabElem = Array.from(document.querySelectorAll(".nav-tab")).find(el => {
+    const oc = el.getAttribute("onclick");
+    return oc && oc.includes(tabId);
+  });
   if (currentTabElem) currentTabElem.classList.add("active");
-  document.getElementById(tabId).classList.add("active");
+  const targetElem = document.getElementById(tabId);
+  if (targetElem) targetElem.classList.add("active");
 
   if (tabId === "tab-history") {
     loadHistory();
@@ -401,6 +416,30 @@ function renderAuditResults(data) {
   badge.className = `status-pill ${data.status.toLowerCase()}`;
   badge.textContent = data.status_text;
 
+  // 顯示從自填表解析出的申請日期與預計入帳日期資訊
+  const userMeta = (data.user_data && data.user_data.meta) || {};
+  const rocYear = document.getElementById("selRocYear").value;
+  const month = document.getElementById("selMonth").value;
+  const applyDate = userMeta.apply_date || getInvoiceApplyDate(rocYear, month);
+  const expectedDeposit = userMeta.expected_deposit_date || getDepositDateFromApplyDate(applyDate, rocYear, month);
+
+  const dateBanner = document.getElementById("auditDateBanner");
+  if (dateBanner) {
+    dateBanner.innerHTML = `
+      <div style="background: #eff6ff; border: 1.5px solid #3b82f6; border-radius: 8px; padding: 0.75rem 1.1rem; margin-bottom: 1.2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+          <span style="font-weight: 700; color: #1e40af; font-size: 0.95rem;">📅 平台版稅明細表日期 (發票申請日)：</span>
+          <span style="font-size: 1.15rem; font-weight: 800; color: #1d4ed8; background: white; padding: 0.15rem 0.6rem; border-radius: 4px; border: 1px solid #bfdbfe;">${applyDate}</span>
+          <span style="color: #64748b; font-size: 0.82rem;">(發票收據申請單將以此日期開立，完全一致)</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-weight: 700; color: #065f46; font-size: 0.9rem;">💰 預計入帳日 (隔月底)：</span>
+          <span style="font-size: 1.05rem; font-weight: 800; color: #059669; background: white; padding: 0.15rem 0.5rem; border-radius: 4px; border: 1px solid #bbf7d0;">${expectedDeposit}</span>
+        </div>
+      </div>
+    `;
+  }
+
   // 指標卡片
   const metricCards = document.getElementById("metricCards");
   metricCards.innerHTML = "";
@@ -514,7 +553,7 @@ async function generateInvoiceDoc() {
       // 自動同步歸檔至歷史資料庫
       await importToSystem(true);
       loadHistory();
-      alert(`已成功生成發票請款單！\n檔案已存於：\n${data.file_path}`);
+      alert(`已成功生成發票請款單！\n\n📄 申請日期：${applyDate} (與平台版稅明細表完全一致)\n💰 預計入帳日：${expectedDeposit}\n\n檔案已存於：\n${data.file_path}`);
     } else {
       alert("生成失敗: " + data.error);
     }
@@ -578,11 +617,20 @@ async function syncCurrentToGoogleSheets() {
   const platName = plat ? plat.name : "104學習平台";
   const items = currentAuditResult.user_data.items;
   const summary = currentAuditResult.user_data.summary;
+  const rocYear = document.getElementById("selRocYear").value;
+  const month = document.getElementById("selMonth").value;
+  const userMeta = (currentAuditResult.user_data && currentAuditResult.user_data.meta) || {};
+  const applyDate = userMeta.apply_date || getInvoiceApplyDate(rocYear, month);
+  let expectedDeposit = userMeta.expected_deposit_date || getDepositDateFromApplyDate(applyDate, rocYear, month);
+  if (expectedDeposit && expectedDeposit.startsWith("(預計)")) {
+    expectedDeposit = expectedDeposit.replace("(預計)", "").trim();
+  }
 
   const invoiceInfo = {
     title: plat ? plat.name : "",
     tax_id: plat ? plat.tax_id : "",
-    expected_deposit_date: ""
+    apply_date: applyDate,
+    expected_deposit_date: expectedDeposit
   };
 
   try {
@@ -663,9 +711,17 @@ async function runBatchAll() {
       // 自動嘗試同步至 Google Sheet
       syncCurrentToGoogleSheets();
 
-      alert(`🎉 全自動月結處理完成！\n1. 雙向對帳完全相符\n2. 數據已歸檔系統\n3. 已產出發票請款申請單 Word\n4. 已產出各講師版稅明細 Excel\n\n存檔目錄：${data.output_dir}`);
+      const userMeta = (data.audit && data.audit.user_data && data.audit.user_data.meta) || {};
+      const batchApplyDate = userMeta.apply_date || getInvoiceApplyDate(rocYear, month);
+      const batchDepositDate = userMeta.expected_deposit_date || getDepositDateFromApplyDate(batchApplyDate, rocYear, month);
+
+      alert(`🎉 全自動月結處理完成！\n1. 雙向對帳完全相符\n2. 數據已歸檔系統\n3. 已產出發票請款申請單 Word\n   • 申請日期：${batchApplyDate} (與平台版稅明細表完全一致)\n   • 預計入帳日：${batchDepositDate}\n4. 已產出各講師版稅明細 Excel\n5. 已自動同步至 Google Sheets 線上試算表\n\n存檔目錄：${data.output_dir}`);
     } else {
-      alert("月結失敗: " + data.error);
+      if (data.error && (data.error.includes("Permission denied") || data.error.includes("開啟佔用") || data.error.includes("Errno 13"))) {
+        alert(data.error);
+      } else {
+        alert("月結失敗: " + data.error);
+      }
     }
   } catch (err) {
     alert("批次執行失敗: " + err.message);
@@ -814,9 +870,27 @@ async function openFilePath(btnOrPath, fullPath) {
     });
     const data = await res.json();
     if (data.success) {
-      const fname = path.split('/').pop();
+      const fname = path.split('/').pop().split('\\').pop();
       showToast(data.message || `已在電腦中開啟檔案：${fname}`, "success");
       if (btn) btn.innerHTML = "✔ 已開啟";
+
+      // 同步透過瀏覽器專屬 Office URI 喚起桌面端 Word / Excel
+      try {
+        const cleanPath = path.replace(/\\/g, '/');
+        const isDocx = fname.toLowerCase().endsWith('.docx');
+        const isXlsx = fname.toLowerCase().endsWith('.xlsx') || fname.toLowerCase().endsWith('.xls');
+        if (isDocx || isXlsx) {
+          const scheme = isDocx ? "ms-word:ofe|u|" : "ms-excel:ofe|u|";
+          const encodedSegments = cleanPath.split('/').map(encodeURIComponent).join('/');
+          const fileUrl = `${window.location.origin}/docs/${encodedSegments}`;
+          const link = document.createElement("a");
+          link.href = scheme + fileUrl;
+          link.style.display = "none";
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => link.remove(), 1000);
+        }
+      } catch (e_uri) {}
     } else {
       alert("開啟檔案失敗: " + (data.error || "未知錯誤"));
       if (btn) btn.innerHTML = originalText;
@@ -1465,6 +1539,25 @@ async function openPrintModal(options = {}) {
     const applyDate = userMeta.apply_date || getInvoiceApplyDate(rocYear, month);
     const expectedDeposit = userMeta.expected_deposit_date || getDepositDateFromApplyDate(applyDate, rocYear, month);
 
+    // 尋找此月份已存在的 Word 請款單路徑
+    const shortName = (plat.name.includes("一零四") || plat.name.includes("104")) ? "104" : ((plat.name.includes("好學校") || plat.name.includes("朋聚")) ? "Hahow" : "平台");
+    let resolvedInvPath = `${periodStr}/附件1_發票收據申請單_${shortName}版稅${periodStr}.docx`;
+    let teacherFilesMap = {};
+
+    try {
+      const histRes = await fetch("/api/history");
+      const histData = await histRes.json();
+      const matchInv = (histData.invoices || []).find(i => i.period === periodStr && (i.platform_id === platformId || (i.title && i.title.includes(plat.name))));
+      if (matchInv && matchInv.file_path) {
+        resolvedInvPath = matchInv.file_path;
+      }
+      (histData.settlements || []).forEach(s => {
+        if (s.period === periodStr && s.excel_path) {
+          teacherFilesMap[s.teacher_name] = s.excel_path;
+        }
+      });
+    } catch (e) {}
+
     const invData = {
       type: "invoice",
       dept: "綜合推廣中心",
@@ -1475,13 +1568,14 @@ async function openPrintModal(options = {}) {
       item_name: plat.item_name || "線上課程訂閱",
       expected_deposit_date: expectedDeposit,
       period: periodStr,
-      file_path: ""
+      file_path: resolvedInvPath
     };
 
     printState.tabs.push({
       key: "invoice",
       title: "📄 發票收據申請單 (Word)",
       type: "invoice",
+      filePath: resolvedInvPath,
       data: invData
     });
 
@@ -1519,15 +1613,21 @@ async function openPrintModal(options = {}) {
 
     let tIdx = 0;
     for (const [tName, tItems] of Object.entries(teacherMap)) {
+      const tPlatName = plat.name.includes("一零四") ? "104學習平台" : (plat.name.includes("瑞奧") ? "PressPlay Academy" : plat.name);
+      const shortPlatName = (plat.name.includes("一零四") || plat.name.includes("104")) ? "104平台" : (plat.name.includes("瑞奧") ? "PPA平台" : "平台");
+      const defaultTeacherFile = `${periodStr}/${shortPlatName}版稅明細-${periodStr}(${tName}老師).xlsx`;
+      const teacherFilePath = teacherFilesMap[tName] || defaultTeacherFile;
       printState.tabs.push({
         key: `settle_${tIdx}`,
         title: `📊 講師明細 (${tName}老師)`,
         type: "settlement",
+        filePath: teacherFilePath,
         data: {
           teacher_name: tName,
           period: periodStr,
-          platform_name: plat.name.includes("一零四") ? "104學習平台" : (plat.name.includes("瑞奧") ? "PressPlay Academy" : plat.name),
-          items: tItems
+          platform_name: tPlatName,
+          items: tItems,
+          file_path: teacherFilePath
         }
       });
       tIdx++;
@@ -1591,11 +1691,34 @@ function renderPrintPreview() {
   if (!currentTabObj) return;
 
   const btnOffice = document.getElementById("btnOpenOfficeCurrent");
+  const btnFolder = document.getElementById("btnOpenFolderCurrent");
+  const btnDownload = document.getElementById("btnDownloadCurrent");
+
   if (currentTabObj.filePath) {
-    btnOffice.style.display = "inline-flex";
     printState.currentOfficeFile = currentTabObj.filePath;
-  } else {
-    btnOffice.style.display = printState.currentOfficeFile ? "inline-flex" : "none";
+  }
+
+  const activeFilePath = currentTabObj.filePath || printState.currentOfficeFile || "";
+  const fname = activeFilePath ? activeFilePath.split('/').pop().split('\\').pop() : "";
+
+  if (btnOffice) {
+    btnOffice.style.display = activeFilePath ? "inline-flex" : "none";
+    btnOffice.title = activeFilePath ? `以 Office 程式開啟本機原檔：${fname}` : "以本機 Microsoft Office 開啟檔案";
+  }
+
+  if (btnFolder) {
+    btnFolder.style.display = activeFilePath ? "inline-flex" : "none";
+    btnFolder.title = activeFilePath ? `在 Windows 檔案總管中選取：${fname}` : "在資料夾中選取";
+  }
+
+  if (btnDownload) {
+    if (activeFilePath) {
+      btnDownload.style.display = "inline-flex";
+      btnDownload.href = `/api/download?file=${encodeURIComponent(activeFilePath.replace(/\\/g, '/'))}`;
+      btnDownload.download = fname;
+    } else {
+      btnDownload.style.display = "none";
+    }
   }
 
   if (currentTabObj.type === "invoice") {
@@ -1615,12 +1738,77 @@ function renderPrintPreview() {
   }
 }
 
-function openCurrentOfficeDoc() {
-  if (printState.currentOfficeFile) {
-    openFilePath(printState.currentOfficeFile);
+// 📄 以 Office 原檔開啟 (包含自動偵測是否存在、若尚未產出則引導一鍵自動產出後開啟)
+async function openCurrentOfficeDoc() {
+  const currentTabObj = printState.tabs.find(t => t.key === printState.currentTab);
+  let filePath = (currentTabObj && currentTabObj.filePath) || printState.currentOfficeFile;
+
+  // 若尚未產出實體檔案，自動詢問是否立即自動產出並開啟
+  if (currentTabObj) {
+    if (currentTabObj.type === "invoice" && currentAuditResult) {
+      try {
+        const checkRes = await fetch("/api/print_doc_data", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file_path: filePath, doc_type: "invoice" })
+        });
+        const checkData = await checkRes.json();
+        if (!checkData.success) {
+          const doGen = confirm("本月份的《附件1_發票收據申請單》Word 檔尚未建立！\n\n是否立即為您【自動產出 Word 請款單】並直接開啟？");
+          if (doGen) {
+            await generateInvoiceDoc();
+            const rocYear = document.getElementById("selRocYear").value;
+            const month = document.getElementById("selMonth").value;
+            const periodStr = `${rocYear}年${month}月`;
+            const platformId = document.getElementById("selPlatform").value;
+            const plat = globalConfigs.platforms.find(p => p.id === platformId) || { name: "104" };
+            const shortName = (plat.name.includes("一零四") || plat.name.includes("104")) ? "104" : "平台";
+            filePath = `${periodStr}/附件1_發票收據申請單_${shortName}版稅${periodStr}.docx`;
+            currentTabObj.filePath = filePath;
+            printState.currentOfficeFile = filePath;
+          } else {
+            return;
+          }
+        }
+      } catch (e) {}
+    } else if (currentTabObj.type === "settlement" && currentAuditResult) {
+      try {
+        const checkRes = await fetch("/api/print_doc_data", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file_path: filePath, doc_type: "settlement" })
+        });
+        const checkData = await checkRes.json();
+        if (!checkData.success) {
+          const doGen = confirm("本月份的講師分潤 Excel 檔尚未建立！\n\n是否立即為您【自動產出 Excel 結算表】並直接開啟？");
+          if (doGen) {
+            await settleTeacherRoyalty();
+            return;
+          } else {
+            return;
+          }
+        }
+      } catch (e) {}
+    }
+  }
+
+  if (filePath) {
+    await openFilePath(document.getElementById("btnOpenOfficeCurrent"), filePath);
   } else {
     alert("尚未產出實體 Office 檔案，請先點選「產出 Word」或「結算 Excel」即可開啟本機檔案！");
   }
+}
+
+// 📂 在資料夾中選取該原檔
+async function openCurrentOfficeFolder() {
+  const currentTabObj = printState.tabs.find(t => t.key === printState.currentTab);
+  let filePath = (currentTabObj && currentTabObj.filePath) || printState.currentOfficeFile;
+  if (!filePath) {
+    const rocYear = document.getElementById("selRocYear") ? document.getElementById("selRocYear").value : "115";
+    const month = document.getElementById("selMonth") ? document.getElementById("selMonth").value : "8";
+    filePath = currentPeriodStr || `${rocYear}年${month}月`;
+  }
+  await openFileFolder(document.getElementById("btnOpenFolderCurrent"), filePath);
 }
 
 // 🖨️ 確認列印：直接連到本機實體影印機，呼叫標準列印對話框

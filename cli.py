@@ -124,6 +124,29 @@ def run_monthly_settlement(roc_year=115, month=8, platform_id="104", user_file=N
             print(f"   分潤: {it['share_rate_str']} -> 本期應付: ${it['payable']:,.1f}")
         print(f"   匯出 Excel: {t_excel_path}")
 
+    # 6. 自動同步至 Google Sheet (含平台預計入帳日期)
+    try:
+        from core.google_sheets import get_sheets_config, sync_to_google_sheets
+        cfg = get_sheets_config()
+        if cfg.get("platform_webhook_url") or cfg.get("teacher_webhook_url"):
+            print(f"\n🌐 [3/3] 正在同步至 Google Sheets 線上試算表 (含預計入帳日期: {actual_deposit})...")
+            sync_res = sync_to_google_sheets(
+                period=period_str,
+                platform_id=platform_id,
+                platform_name=plat_info["name"],
+                items=items,
+                summary=audit_res["user_data"]["summary"],
+                invoice_info={
+                    "title": plat_info["name"],
+                    "tax_id": plat_info["tax_id"],
+                    "expected_deposit_date": actual_deposit
+                },
+                teacher_settlements=teacher_results
+            )
+            print(f"   {sync_res.get('message', '')}")
+    except Exception as e:
+        print(f"   ⚠️ Google Sheets 同步跳過或異常: {str(e)}")
+
     print("\n" + "=" * 65)
     print(f"🎉 全部月結流程已完成！所有檔案已自動存入:")
     print(f"👉 {out_dir}")

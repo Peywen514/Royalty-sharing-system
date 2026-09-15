@@ -328,6 +328,68 @@ body {
   overflow-x: auto;
 }
 
+/* ==================================================== */
+/* 歷史紀錄與請款存檔專屬：各區塊小滾軸 (上下滑動與自訂捲軸) */
+/* ==================================================== */
+.history-table-scroll,
+#tab-history .table-responsive {
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background-color: #ffffff;
+  position: relative;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+/* Chrome, Edge, Safari 精緻細小滾軸樣式 */
+.history-table-scroll::-webkit-scrollbar,
+#tab-history .table-responsive::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.history-table-scroll::-webkit-scrollbar-track,
+#tab-history .table-responsive::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.history-table-scroll::-webkit-scrollbar-thumb,
+#tab-history .table-responsive::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 4px;
+  border: 2px solid #f1f5f9;
+}
+
+.history-table-scroll::-webkit-scrollbar-thumb:hover,
+#tab-history .table-responsive::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* 歷史紀錄表格：固定表頭 (Sticky Header)，滾動時標題永遠置頂 */
+#tab-history .custom-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+#tab-history .custom-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #f1f5f9;
+  border-bottom: 2px solid #cbd5e1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+#tab-history .custom-table tbody tr:hover td {
+  background-color: #f8fafc;
+}
+
 .custom-table {
   width: 100%;
   border-collapse: collapse;

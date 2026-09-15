@@ -132,7 +132,7 @@ class InvoiceDocGenerator:
                 p.runs[0].bold = bold
 
     def _update_apply_date(self, cell, apply_date_str, roc_y=None, m_val=None, d_val=None):
-        """更新申請日期 (保留原欄位格式、字型與大小)"""
+        """更新申請日期 (保留原欄位格式、字型與大小，精確對齊 年、月、日 錨點)"""
         if not (roc_y and m_val and d_val):
             apply_date_str, roc_y, m_val, d_val = self.parse_roc_date(apply_date_str)
         
@@ -141,19 +141,45 @@ class InvoiceDocGenerator:
         d_str = f"{d_val:02d}" if d_val else "03"
         
         if cell.paragraphs and cell.paragraphs[0].runs:
-            runs = cell.paragraphs[0].runs
-            if any(r.text == "年" for r in runs):
-                for r in runs:
-                    if r.text in ["11", "114", "115", "116"]:
-                        r.text = y_str[:2]
-                    elif r.text in ["4", "5", "6", "7"] and runs.index(r) < 7:
-                        r.text = y_str[2:] if len(y_str) > 2 else ""
-                    elif r.text in ["0", "1"] and 5 <= runs.index(r) <= 10:
-                        r.text = m_str[0]
-                    elif r.text in ["8", "9", "0", "1", "2"] and 7 <= runs.index(r) <= 11:
-                        r.text = m_str[1]
-                    elif r.text in ["03", "01", "11", "15", "20", "30", "31"] or (len(r.text) == 2 and r.text.isdigit()):
-                        r.text = d_str
+            p = cell.paragraphs[0]
+            runs = p.runs
+            
+            idx_year, idx_month, idx_day = -1, -1, -1
+            for i, r in enumerate(runs):
+                if "年" in r.text and idx_year == -1:
+                    idx_year = i
+                elif "月" in r.text and idx_month == -1:
+                    idx_month = i
+                elif "日" in r.text and idx_day == -1:
+                    idx_day = i
+            
+            if idx_year != -1 and idx_month != -1 and idx_day != -1:
+                # 1. 年份：年 (idx_year) 之前的 runs
+                year_runs = [r for i, r in enumerate(runs) if i < idx_year and (r.text.strip() or i >= 4)]
+                if len(year_runs) >= 2:
+                    year_runs[0].text = y_str[:2]
+                    year_runs[1].text = y_str[2:] if len(y_str) > 2 else ""
+                    for r in year_runs[2:]:
+                        r.text = ""
+                elif year_runs:
+                    year_runs[0].text = y_str
+                
+                # 2. 月份：年 (idx_year) 與 月 (idx_month) 之間的 runs
+                month_runs = [r for i, r in enumerate(runs) if idx_year < i < idx_month]
+                if len(month_runs) >= 2:
+                    month_runs[0].text = m_str[0]
+                    month_runs[1].text = m_str[1]
+                    for r in month_runs[2:]:
+                        r.text = ""
+                elif month_runs:
+                    month_runs[0].text = m_str
+                
+                # 3. 日期：月 (idx_month) 與 日 (idx_day) 之間的 runs
+                day_runs = [r for i, r in enumerate(runs) if idx_month < i < idx_day]
+                if day_runs:
+                    day_runs[0].text = d_str
+                    for r in day_runs[1:]:
+                        r.text = ""
             else:
                 self._set_cell_text(cell, f"{y_str}年{m_str}月{d_str}日")
         else:
@@ -299,7 +325,13 @@ class InvoiceDocGenerator:
                 filename += ".docx"
 
         save_path = os.path.join(output_dir, filename)
-        doc.save(save_path)
+        try:
+            doc.save(save_path)
+        except PermissionError:
+            raise PermissionError(
+                f"檔案儲存失敗：【{filename}】目前正被 Microsoft Word 開啟佔用中！\n\n"
+                f"👉 解決方法：請先將電腦中開啟的 Word《發票請款申請單》檔案存檔並關閉，然後再點擊一次即可！"
+            )
         return save_path
 
 if __name__ == "__main__":

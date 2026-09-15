@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>線上課程版稅銷售與請款結算系統</title>
-  <link rel="stylesheet" href="style.css?t=20260914v362">
+  <link rel="stylesheet" href="style.css?t=20260915v363">
 </head>
 <body>
   <!-- Header -->
@@ -19,7 +19,7 @@
       </p>
     </div>
     <div style="display: flex; gap: 0.8rem; align-items: center;">
-      <span class="header-badge" id="systemStatus">🟢 系統連線正常 (v3.6.2 已更新)</span>
+      <span class="header-badge" id="systemStatus">🟢 系統連線正常 (v3.6.3 已更新)</span>
       <button class="btn btn-secondary btn-sm" onclick="openCurrentFolder(this)">📂 開啟系統資料夾</button>
     </div>
   </header>
@@ -162,6 +162,9 @@
           <span>2️⃣ 對帳審計結果與數據對照</span>
           <span id="auditStatusBadge" class="status-pill matched">✅ 核對相符</span>
         </div>
+
+        <!-- 申請日期與入帳日資訊提示 -->
+        <div id="auditDateBanner"></div>
 
         <!-- 指標卡片 -->
         <div class="grid-5" id="metricCards">
@@ -346,7 +349,7 @@
         <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
           記錄各月度針對 104、PPA 等合作平台所產出之標準請款單 Word 檔、抬頭、統編、金額與預計入帳日。
         </p>
-        <div class="table-responsive">
+        <div class="table-responsive history-table-scroll">
           <table class="custom-table" id="historyInvoiceTable">
             <thead>
               <tr>
@@ -375,7 +378,7 @@
         <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
           記錄每次結算給各位老師之課程銷售分潤、製作成本扣除、結餘淨利與應付版稅明細 Excel 檔。
         </p>
-        <div class="table-responsive">
+        <div class="table-responsive history-table-scroll">
           <table class="custom-table" id="historySettlementTable">
             <thead>
               <tr>
@@ -407,7 +410,7 @@
         <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
           記錄自填明細與平台方提供數據之雙向核對結果與金額相符狀態。
         </p>
-        <div class="table-responsive">
+        <div class="table-responsive history-table-scroll">
           <table class="custom-table" id="historyTable">
             <thead>
               <tr>
@@ -552,6 +555,12 @@
           <button class="btn btn-secondary btn-sm" id="btnOpenOfficeCurrent" onclick="openCurrentOfficeDoc()" title="以本機 Microsoft Word 或 Excel 開啟檔案">
             📄 以 Office 原檔開啟
           </button>
+          <button class="btn btn-secondary btn-sm" id="btnOpenFolderCurrent" onclick="openCurrentOfficeFolder()" title="在 Windows 檔案總管中開啟並選取該檔案">
+            📂 在資料夾中選取
+          </button>
+          <a class="btn btn-secondary btn-sm" id="btnDownloadCurrent" href="#" download="" title="直接下載該原檔至本機" style="display: none; text-decoration: none; align-items: center;">
+            ⬇️ 下載原檔
+          </a>
           <button class="btn btn-secondary btn-sm" onclick="closePrintModal()">✖️ 關閉</button>
         </div>
       </div>
@@ -574,6 +583,6 @@
     <p style="margin-top: 0.3rem; font-size: 0.75rem;">依據會計準則、平台商務合約與講師分潤協議設計 &bull; 支援 104、Hahow、PPA 等多平台線上課程</p>
   </footer>
 
-  <script src="app.js?t=20260914v362"></script>
+  <script src="app.js?t=20260915v368"></script>
 </body>
 </html>

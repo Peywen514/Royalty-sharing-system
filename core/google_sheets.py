@@ -44,6 +44,44 @@ def sync_to_google_sheets(period, platform_id, platform_name, items, summary, in
     messages = []
     success_count = 0
 
+    if invoice_info is None:
+        invoice_info = {}
+
+    # 自動解析並確保「預計入帳日期」具備有效值
+    expected_deposit = str(invoice_info.get("expected_deposit_date") or "").strip()
+    if expected_deposit.startswith("(預計)"):
+        expected_deposit = expected_deposit.replace("(預計)", "").strip()
+
+    if not expected_deposit:
+        # 1. 優先由 SQLite 資料庫 invoice_requests 查詢該期別與平台之預計入帳日期
+        try:
+            from core.db import get_connection
+            conn = get_connection()
+            c = conn.cursor()
+            c.execute("SELECT expected_deposit_date FROM invoice_requests WHERE period = ? AND platform_id = ? ORDER BY id DESC LIMIT 1", (period, platform_id))
+            row = c.fetchone()
+            if row and row["expected_deposit_date"]:
+                expected_deposit = str(row["expected_deposit_date"]).replace("(預計)", "").strip()
+            conn.close()
+        except Exception:
+            pass
+
+    if not expected_deposit:
+        # 2. 若資料庫無紀錄，依期別自動推算隔月底入帳日 (例如 115年8月 -> 隔月申請 9月 -> 隔月底 115年10月31日)
+        try:
+            import re
+            from core.invoice_doc import InvoiceDocGenerator
+            m = re.search(r"(\d{2,3})[年/-](\d{1,2})", str(period))
+            if m:
+                roc_y = int(m.group(1))
+                m_val = int(m.group(2))
+                apply_date = InvoiceDocGenerator.calc_apply_date(roc_y, m_val)
+                expected_deposit = InvoiceDocGenerator.calc_deposit_date_from_apply_date(apply_date, roc_y, m_val)
+        except Exception:
+            pass
+
+    invoice_info["expected_deposit_date"] = expected_deposit
+
     # -------------------------------------------------------------
     # 任務 1：同步至【平台對帳請款表】(Sheet 1: 104 / PPA 分頁)
     # -------------------------------------------------------------
@@ -74,7 +112,7 @@ def sync_to_google_sheets(period, platform_id, platform_name, items, summary, in
                     "發票請款總額(含稅)": ppa_details.get("invoice_amount_integer", 0),
                     "發票抬頭": invoice_info.get("title", "瑞奧股份有限公司") if invoice_info else "瑞奧股份有限公司",
                     "統一編號": invoice_info.get("tax_id", "54225569") if invoice_info else "54225569",
-                    "預計入帳日期": invoice_info.get("expected_deposit_date", "") if invoice_info else "",
+                    "預計入帳日期": expected_deposit,
                     "更新時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 })
         else:
@@ -92,7 +130,7 @@ def sync_to_google_sheets(period, platform_id, platform_name, items, summary, in
                     "應收請款總額(含稅)": round(it.get("royalty_gross", 0)),
                     "發票抬頭": invoice_info.get("title", "一零四資訊科技股份有限公司") if invoice_info else "",
                     "統一編號": invoice_info.get("tax_id", "84598349") if invoice_info else "",
-                    "預計入帳日期": invoice_info.get("expected_deposit_date", "") if invoice_info else "",
+                    "預計入帳日期": expected_deposit,
                     "更新時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 })
 
@@ -137,6 +175,7 @@ def sync_to_google_sheets(period, platform_id, platform_name, items, summary, in
                     "結餘淨利": ti.get("net_profit", 0),
                     "講師分潤比率": ti.get("share_rate_str", "50%"),
                     "本期應付講師版稅": ti.get("payable", 0),
+                    "預計入帳日期": expected_deposit,
                     "備註": ti.get("note", ""),
                     "更新時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 })
@@ -397,7 +436,7 @@ GAS_TEACHER_CODE = '''/**
 
 var TEACHER_HEADERS = [
   "結算期別", "授課講師", "課程名稱", "所屬平台",
-  "平台撥入淨額", "製作費用扣除(攤提)", "結餘淨利",
+  "平台撥入淨額", "預計入帳日期", "製作費用扣除(攤提)", "結餘淨利",
   "講師分潤比率", "本期應付講師版稅", "備註說明", "寫入時間"
 ];
 
@@ -453,6 +492,7 @@ function doPost(e) {
         r["課程名稱"] || "",
         r["所屬平台"] || "",
         r["平台撥入淨額"] || 0,
+        r["預計入帳日期"] || "",
         r["製作費用扣除(攤提)"] || 0,
         r["結餘淨利"] || 0,
         r["講師分潤比率"] || "50%",

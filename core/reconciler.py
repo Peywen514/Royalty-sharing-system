@@ -18,6 +18,14 @@ class Reconciler:
         wb = openpyxl.load_workbook(file_path, data_only=True)
         ws = wb.active
         
+        # 同時載入公式工作簿以識別 =TODAY() 等動態日期公式
+        ws_formula = None
+        try:
+            wb_form = openpyxl.load_workbook(file_path, data_only=False)
+            ws_formula = wb_form.active
+        except Exception:
+            pass
+        
         meta = {
             "platform_name": "",
             "tax_id": "",
@@ -29,7 +37,7 @@ class Reconciler:
         
         # 提取表頭資訊 (平台名稱、統一編號、右上角申請日期)
         raw_date = None
-        for r in range(1, 5):
+        for r in range(1, 6):
             for c in range(1, ws.max_column + 1):
                 val = str(ws.cell(r, c).value or "").strip()
                 if "課程平台：" in val or "平台：" in val:
@@ -37,15 +45,32 @@ class Reconciler:
                 elif "統一編號：" in val or "統編：" in val:
                     meta["tax_id"] = val.split("：", 1)[-1].strip()
                 elif "日期：" in val or val == "日期" or "申請日期" in val:
-                    next_val = ws.cell(r, c + 1).value if c + 1 <= ws.max_column else None
-                    if next_val:
-                        raw_date = next_val
-                    elif "：" in val:
-                        part = val.split("：", 1)[-1].strip()
-                        if part: raw_date = part
-                    elif ":" in val:
-                        part = val.split(":", 1)[-1].strip()
-                        if part: raw_date = part
+                    # 1. 檢查是否日期直接寫在同一個儲存格中 (例如 "日期：2026-09-03")
+                    import re
+                    m_inline = re.search(r'(?:日期|申請日期)[：:\s]+(\d{2,4}[-/.\u5e74].+)', val)
+                    if m_inline:
+                        raw_date = m_inline.group(1).strip()
+                    else:
+                        # 2. 往右掃描後續欄位 (c+1 至 c+5) 尋找日期值或公式
+                        for col in range(c + 1, min(c + 6, ws.max_column + 1)):
+                            form_val = ws_formula.cell(r, col).value if ws_formula else None
+                            data_val = ws.cell(r, col).value
+                            if str(form_val or "").strip().upper() in ["=TODAY()", "=TODAY", "=NOW()", "=NOW"]:
+                                import datetime
+                                raw_date = datetime.date.today()
+                                break
+                            elif data_val is not None and str(data_val).strip() != "":
+                                raw_date = data_val
+                                break
+                        # 3. 若同列未找到，檢查下一列同欄位 (r+1, c)
+                        if not raw_date and r + 1 <= ws.max_row:
+                            form_val = ws_formula.cell(r + 1, c).value if ws_formula else None
+                            data_val = ws.cell(r + 1, c).value
+                            if str(form_val or "").strip().upper() in ["=TODAY()", "=TODAY", "=NOW()", "=NOW"]:
+                                import datetime
+                                raw_date = datetime.date.today()
+                            elif data_val is not None and str(data_val).strip() != "":
+                                raw_date = data_val
 
         if raw_date:
             apply_date, roc_y, m_val, _ = InvoiceDocGenerator.parse_roc_date(raw_date)

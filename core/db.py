@@ -163,8 +163,10 @@ def get_all_configs():
 
 # 更新平台設定
 def save_platform(platform_data):
+    import time
     conn = get_connection()
     c = conn.cursor()
+    p_id = platform_data.get('id') or platform_data.get('platform_id') or f"plat_{int(time.time())}"
     c.execute('''
     INSERT INTO platforms (id, name, tax_id, revenue_type, item_name, commission_rate, due_cycle, note)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -177,9 +179,9 @@ def save_platform(platform_data):
         due_cycle=excluded.due_cycle,
         note=excluded.note
     ''', (
-        platform_data['id'],
-        platform_data['name'],
-        platform_data['tax_id'],
+        p_id,
+        platform_data.get('name', ''),
+        platform_data.get('tax_id', ''),
         platform_data.get('revenue_type', '版稅收入'),
         platform_data.get('item_name', '線上課程訂閱'),
         float(platform_data.get('commission_rate', 0.8)),
@@ -191,8 +193,19 @@ def save_platform(platform_data):
 
 # 更新課程與分潤設定
 def save_course(course_data):
+    import time
     conn = get_connection()
     c = conn.cursor()
+    c_id = course_data.get('id') or f"c_{int(time.time()*1000)}"
+    c_platform = course_data.get('platform_id') or course_data.get('platform_name') or '104'
+    c_name = course_data.get('course_name', '')
+    t_name = course_data.get('teacher_name', '')
+    price = float(course_data.get('price') or course_data.get('course_price') or 0)
+    share_rate = float(course_data.get('teacher_share_rate', 0.5))
+    prod_cost = float(course_data.get('production_cost', 0))
+    ded_type = course_data.get('deduction_type', 'per_period')
+    note = course_data.get('note', '')
+
     c.execute('''
     INSERT INTO courses (id, course_name, platform_id, teacher_name, price, teacher_share_rate, production_cost, deduction_type, note)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -206,15 +219,15 @@ def save_course(course_data):
         deduction_type=excluded.deduction_type,
         note=excluded.note
     ''', (
-        course_data['id'],
-        course_data['course_name'],
-        course_data['platform_id'],
-        course_data['teacher_name'],
-        float(course_data.get('price', 0)),
-        float(course_data.get('teacher_share_rate', 0.5)),
-        float(course_data.get('production_cost', 0)),
-        course_data.get('deduction_type', 'per_period'),
-        course_data.get('note', '')
+        c_id,
+        c_name,
+        c_platform,
+        t_name,
+        price,
+        share_rate,
+        prod_cost,
+        ded_type,
+        note
     ))
     conn.commit()
     conn.close()
