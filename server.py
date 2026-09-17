@@ -18,7 +18,8 @@ sys.path.insert(0, BASE_DIR)
 from core.db import (
     init_db, get_connection, get_all_configs, 
     save_platform, delete_platform, save_course, delete_course, save_teacher, get_history,
-    delete_history_record
+    delete_history_record, update_invoice_deposit_status,
+    update_teacher_settlement_disbursed, batch_update_teacher_settlements_disbursed
 )
 from core.reconciler import Reconciler
 from core.invoice_doc import InvoiceDocGenerator
@@ -28,6 +29,11 @@ from core.google_sheets import (
     GAS_TEMPLATE_CODE, GAS_PLATFORM_CODE, GAS_TEACHER_CODE
 )
 from core.ppa_calculator import calc_ppa_royalty
+from core.taiwan_holidays import calc_platform_deposit_date
+from core.reminder import (
+    reminder_scheduler, check_and_send_due_reminders,
+    get_reminders_status, send_windows_notification
+)
 
 PORT = 8990
 WEB_DIR = os.path.join(BASE_DIR, "web")
@@ -139,6 +145,20 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
             cfg["gas_platform_code"] = GAS_PLATFORM_CODE
             cfg["gas_teacher_code"] = GAS_TEACHER_CODE
             self._send_json(cfg)
+            return
+
+        elif path == "/api/reminders":
+            status = get_reminders_status()
+            self._send_json(status)
+            return
+
+        elif path == "/api/calc_deposit_date":
+            qs = urllib.parse.parse_qs(parsed.query)
+            apply_date = qs.get("apply_date", [""])[0]
+            roc_year = int(qs.get("roc_year", [115])[0])
+            month = int(qs.get("month", [8])[0])
+            dep_date, details = calc_platform_deposit_date(apply_date or (roc_year, month))
+            self._send_json({"expected_deposit_date": dep_date, "details": details})
             return
 
         elif path.startswith("/docs/"):
@@ -872,10 +892,78 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                 self._send_json({"error": str(e)}, status=500)
             return
 
+        elif path == "/api/reminders/send_test":
+            title = req_data.get("title", "【平台版稅入帳提醒測試】")
+            message = req_data.get("message", "這是一則 Windows 桌面提醒測試！\n若平台版稅入帳日前 1 天，系統將在此為您主動發送通知。")
+            send_windows_notification(title, message)
+            self._send_json({"success": True, "message": "已成功觸發 Windows 桌面測試通知！"})
+            return
+
+        elif path == "/api/reminders/check_now":
+            sent_count = check_and_send_due_reminders(force=True)
+            self._send_json({"success": True, "sent": sent_count})
+            return
+
+        elif path == "/api/reminders/confirm_deposit" or path == "/api/invoice/confirm_deposit":
+            inv_id = req_data.get("id")
+            is_dep = int(req_data.get("is_deposited", 1))
+            dep_date = req_data.get("deposited_date")
+            dep_note = req_data.get("note", "")
+            if not inv_id:
+                self._send_json({"error": "缺少發票請款單 ID 參數"}, status=400)
+                return
+            try:
+                res = update_invoice_deposit_status(
+                    invoice_id=inv_id,
+                    is_deposited=is_dep,
+                    deposited_date=dep_date,
+                    deposited_note=dep_note
+                )
+                self._send_json({"success": True, "item": res})
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=500)
+            return
+
+        elif path == "/api/settlements/confirm_disburse":
+            settlement_ids = req_data.get("ids") or ([req_data.get("id")] if req_data.get("id") else [])
+            is_disbursed = int(req_data.get("is_disbursed", 1))
+            disbursed_date = req_data.get("disbursed_date")
+            disbursed_batch = req_data.get("disbursed_batch", "")
+            note = req_data.get("note", "")
+
+            if not settlement_ids:
+                self._send_json({"error": "缺少講師分潤紀錄 ID"}, status=400)
+                return
+
+            try:
+                if len(settlement_ids) == 1:
+                    res = update_teacher_settlement_disbursed(
+                        settlement_id=settlement_ids[0],
+                        is_disbursed=is_disbursed,
+                        disbursed_date=disbursed_date,
+                        disbursed_batch=disbursed_batch,
+                        disbursed_note=note
+                    )
+                    self._send_json({"success": True, "count": 1, "item": res})
+                else:
+                    count = batch_update_teacher_settlements_disbursed(
+                        settlement_ids=settlement_ids,
+                        is_disbursed=is_disbursed,
+                        disbursed_date=disbursed_date,
+                        disbursed_batch=disbursed_batch,
+                        disbursed_note=note
+                    )
+                    self._send_json({"success": True, "count": count})
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=500)
+            return
+
         self._send_json({"error": "Unknown API endpoint"}, status=404)
 
 def run_server():
     init_db()
+    # 啟動入帳前1天提醒背景排程守護緒
+    reminder_scheduler.start()
     url = f"http://127.0.0.1:{PORT}"
     try:
         server_address = ('', PORT)

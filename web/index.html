@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>線上課程版稅銷售與請款結算系統</title>
-  <link rel="stylesheet" href="style.css?t=20260915v363">
+  <link rel="stylesheet" href="style.css?t=20260916v375">
 </head>
 <body>
   <!-- Header -->
@@ -19,7 +19,7 @@
       </p>
     </div>
     <div style="display: flex; gap: 0.8rem; align-items: center;">
-      <span class="header-badge" id="systemStatus">🟢 系統連線正常 (v3.6.3 已更新)</span>
+      <span class="header-badge" id="systemStatus">🟢 系統連線正常 (v3.7.5 已更新)</span>
       <button class="btn btn-secondary btn-sm" onclick="openCurrentFolder(this)">📂 開啟系統資料夾</button>
     </div>
   </header>
@@ -27,6 +27,7 @@
   <!-- Navigation Tabs -->
   <nav class="nav-tabs">
     <div class="nav-tab active" onclick="switchTab('tab-reconcile')">📑 本月對帳與請款作業</div>
+    <div class="nav-tab" onclick="switchTab('tab-reminders')">🔔 入帳提醒與追蹤 <span id="navReminderBadge" class="badge-reminder" style="display:none;">0</span></div>
     <div class="nav-tab" onclick="switchTab('tab-teachers')">🧑‍🏫 講師分潤與課程設定</div>
     <div class="nav-tab" onclick="switchTab('tab-platforms')">🏢 合作平台管理</div>
     <div class="nav-tab" onclick="switchTab('tab-googlesheets')">🌐 Google Sheet 自動串聯</div>
@@ -35,6 +36,9 @@
 
   <!-- Main Container -->
   <main class="container">
+    
+    <!-- 全域入帳提醒橫幅 (前1天自動提醒) -->
+    <div id="globalReminderBanner" style="display: none; margin-bottom: 1.2rem;"></div>
     
     <!-- Tab 1: 本月對帳與請款作業 -->
     <section id="tab-reconcile" class="tab-content active">
@@ -221,6 +225,78 @@
 
     </section>
 
+    <!-- Tab: 入帳提醒與追蹤 -->
+    <section id="tab-reminders" class="tab-content">
+      <!-- 頂部規範與提醒說明卡片 -->
+      <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border: 1.5px solid #86efac;">
+        <div class="card-title" style="color: #065f46; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem;">
+          <span style="font-size: 1.15rem; font-weight: 800;">🔔 平台版稅預計入帳提醒與追蹤管理</span>
+          <div style="display: flex; gap: 0.6rem;">
+            <button class="btn btn-sm btn-primary" onclick="sendTestNotification()" style="box-shadow: 0 2px 6px rgba(37,99,235,0.25);">🔔 測試發送 Windows 桌面通知</button>
+            <button class="btn btn-sm btn-secondary" onclick="loadReminders(true)">🔄 即時檢查最新入帳</button>
+          </div>
+        </div>
+        <div style="font-size: 0.92rem; color: #166534; line-height: 1.6; margin-top: 0.5rem;">
+          <div>📌 <strong>預計入帳日計算規則 (依合約最新規範)</strong>：</div>
+          <div style="padding-left: 1.2rem; margin-top: 0.2rem;">
+            以<strong>請款發票開立當月起算，次月 1 日起算 35 日，遇例假日或國定假日順延至次一工作日</strong>。<br>
+            👉 <strong>合約範例驗證</strong>：<strong>11 月填好發票</strong> ➔ 次月 12/1 起算 35 天為次年 <strong>1 月 5 日收到款項 (1/5)</strong>。<br>
+            👉 <strong>自動提醒機制</strong>：系統將於<strong>預計入帳日前 1 天</strong>（以及當日）自動在 <strong>Windows 桌面推播彈窗通知</strong>並於系統頂部顯示醒目橫幅，確保款項核收零延誤！
+          </div>
+        </div>
+      </div>
+
+      <!-- 統計指標卡片 -->
+      <div class="grid-4" style="margin-bottom: 1.5rem;" id="reminderMetricCards">
+        <div class="metric-card" style="border-top: 4px solid #f59e0b; background: white;">
+          <div class="metric-label" style="font-weight: 700; color: #b45309;">🔔 明日即將入帳 (前1天)</div>
+          <div class="metric-val" id="cntRemindTomorrow" style="color: #d97706;">0 筆</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem;">系統將主動發送桌面提醒</div>
+        </div>
+        <div class="metric-card" style="border-top: 4px solid #ef4444; background: white;">
+          <div class="metric-label" style="font-weight: 700; color: #b91c1c;">💰 今日到期入帳</div>
+          <div class="metric-val" id="cntRemindToday" style="color: #dc2626;">0 筆</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem;">今日預計入帳款項，請查帳</div>
+        </div>
+        <div class="metric-card" style="border-top: 4px solid #3b82f6; background: white;">
+          <div class="metric-label" style="font-weight: 700; color: #1d4ed8;">⏳ 7 天內即將入帳</div>
+          <div class="metric-val" id="cntRemindUpcoming" style="color: #2563eb;">0 筆</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem;">即將到來之請款款項</div>
+        </div>
+        <div class="metric-card" style="border-top: 4px solid #64748b; background: white;">
+          <div class="metric-label" style="font-weight: 700; color: #334155;">📄 請款單總計追蹤</div>
+          <div class="metric-val" id="cntRemindTotal" style="color: #475569;">0 筆</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem;">歷史累計請款開立案件</div>
+        </div>
+      </div>
+
+      <!-- 發票請款入帳清單表格 -->
+      <div class="card">
+        <div class="card-title">
+          <span>📋 請款發票預計入帳時程與追蹤清單</span>
+          <span style="font-size: 0.85rem; color: #64748b;" id="reminderTodayLabel"></span>
+        </div>
+        <div class="table-responsive">
+          <table class="custom-table" id="remindersTable">
+            <thead>
+              <tr>
+                <th style="width: 10%;">期別</th>
+                <th style="width: 20%;">發票抬頭 (平台)</th>
+                <th style="width: 12%;">申請發票日期</th>
+                <th style="width: 14%;" class="text-right">請款金額(含稅)</th>
+                <th style="width: 16%;">預計入帳日 (次月起算35天)</th>
+                <th style="width: 16%;">到期狀態 (倒數)</th>
+                <th style="width: 12%;" class="text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody id="remindersTableBody">
+              <!-- 動態載入入帳提醒清單 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- Tab 2: 講師分潤與課程設定 -->
     <section id="tab-teachers" class="tab-content">
       <div class="card">
@@ -261,7 +337,7 @@
           <button class="btn btn-primary btn-sm" onclick="openAddPlatformModal()">➕ 新增合作平台</button>
         </div>
         <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
-          系統於生成《附件1_發票收據申請單》時，將依此處之平台設定自動帶入公司抬頭、統一編號、品名與下個月底預計入帳日期。
+          系統於生成《附件1_發票收據申請單》時，將依此處之平台設定自動帶入公司抬頭、統一編號、品名與次月起算35天（遇假日順延）之預計入帳日期。
         </p>
         <div class="table-responsive">
           <table class="custom-table" id="platformsTable">
@@ -359,6 +435,7 @@
                 <th>統一編號</th>
                 <th class="text-right">請款金額(含稅)</th>
                 <th>預計入帳日期</th>
+                <th class="text-center">入帳確認狀態</th>
                 <th>請款單存檔文件 (Word)</th>
                 <th class="text-center">操作</th>
               </tr>
@@ -374,10 +451,33 @@
       <div class="card" style="margin-bottom: 1.5rem;">
         <div class="card-title">
           <span>🧑‍🏫 講師版稅分潤結算紀錄 (侯玉彤、簡志峰等老師)</span>
+          <span style="font-size: 0.85rem; color: #64748b; font-weight: 500;">📅 一年固定 2 次撥款（每年 5月 &bull; 11月）</span>
         </div>
         <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
           記錄每次結算給各位老師之課程銷售分潤、製作成本扣除、結餘淨利與應付版稅明細 Excel 檔。
         </p>
+
+        <!-- 5月/11月 講師撥款核算與會計確認專區 -->
+        <div id="teacherDisburseBatchBanner" style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border: 1.5px solid #86efac; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.8rem;">
+            <div>
+              <div style="font-weight: 800; color: #065f46; font-size: 1.05rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span>💰 講師版稅一年兩次撥款核算看板 (每年 5月 / 11月 撥付)</span>
+              </div>
+              <div style="font-size: 0.84rem; color: #166534; margin-top: 0.25rem;">
+                合約規範：5~10月結算款於 <strong>11月</strong> 撥款；11~次年4月結算款於 <strong>5月</strong> 撥款。在此可直接確認各老師累計金額，與會計確認後一鍵勾核！
+              </div>
+            </div>
+            <div id="teacherBatchActionArea" style="display: flex; gap: 0.6rem; align-items: center;">
+              <!-- 動態載入批次勾核按鈕 -->
+            </div>
+          </div>
+          <!-- 各老師累計應付金額卡片區 -->
+          <div id="teacherSummaryPills" style="display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.85rem;">
+            <!-- 動態載入：各老師累計金額與明細筆數 -->
+          </div>
+        </div>
+
         <div class="table-responsive history-table-scroll">
           <table class="custom-table" id="historySettlementTable">
             <thead>
@@ -391,6 +491,7 @@
                 <th class="text-right">結餘淨利</th>
                 <th class="text-center">分潤比</th>
                 <th class="text-right">本期應付版稅</th>
+                <th class="text-center">撥款狀態 (5月/11月)</th>
                 <th>明細檔 (Excel)</th>
                 <th class="text-center">操作</th>
               </tr>
@@ -530,6 +631,168 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal: 勾核已入帳確認 / 查看確認紀錄 -->
+  <div class="modal-overlay" id="depositConfirmModal">
+    <div class="modal-box" style="max-width: 540px;">
+      <div class="modal-header" style="margin-bottom: 0.8rem; padding-bottom: 0.6rem;">
+        <h3 class="modal-title" id="depositModalTitle" style="display: flex; align-items: center; gap: 0.5rem; color: #065f46; font-size: 1.15rem;">
+          💰 平台版稅款項【勾核已入帳】確認
+        </h3>
+        <button class="modal-close" onclick="closeDepositConfirmModal()">&times;</button>
+      </div>
+      <input type="hidden" id="modalDepositInvoiceId">
+      
+      <!-- 請款單資訊摘要卡片 -->
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.9rem 1rem; margin-bottom: 1.1rem;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.88rem;">
+          <div><strong style="color: #475569;">結算期別：</strong><span id="depositSummaryPeriod" style="color: #1e40af; font-weight: 700;">-</span></div>
+          <div><strong style="color: #475569;">請款金額：</strong><span id="depositSummaryAmount" style="color: #059669; font-weight: 800;">-</span></div>
+          <div style="grid-column: span 2;"><strong style="color: #475569;">發票抬頭：</strong><span id="depositSummaryTitle" style="font-weight: 600;">-</span></div>
+          <div style="grid-column: span 2;"><strong style="color: #475569;">預計入帳日：</strong><span id="depositSummaryExpectedDate" style="color: #d97706; font-weight: 700;">-</span></div>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1rem;">
+        <label class="form-label" style="font-weight: 700;">實際入帳日期 <span style="color: #dc2626;">*</span></label>
+        <input type="text" class="form-control" id="modalActualDepositDate" placeholder="例：115年09月16日 或 2026-09-16">
+        <div style="font-size: 0.78rem; color: #64748b; margin-top: 0.25rem;">系統已自動預設今日日期，亦可手動修正為實際銀行查帳到帳日</div>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1.1rem;">
+        <label class="form-label" style="font-weight: 700;">入帳核對備註 (選填)</label>
+        <input type="text" class="form-control" id="modalDepositNote" placeholder="例：已確認入帳合作金庫帳戶 / 平台已完成撥款">
+      </div>
+
+      <div id="depositAlreadyStatusBox" style="display: none; background: #ecfdf5; border: 1.5px solid #86efac; border-radius: 8px; padding: 0.75rem 0.9rem; margin-bottom: 1.1rem; font-size: 0.85rem; color: #065f46; line-height: 1.5;">
+        <!-- 顯示歷史入帳確認資訊 -->
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 0.9rem;">
+        <div>
+          <button class="btn btn-secondary btn-sm" id="btnCancelDepositCheck" onclick="submitCancelDeposit()" style="display: none; color: #dc2626; border-color: #fca5a5; font-weight: 600;">
+            ↩️ 取消勾核 (恢復待入帳)
+          </button>
+        </div>
+        <div style="display: flex; gap: 0.6rem;">
+          <button class="btn btn-secondary btn-sm" onclick="closeDepositConfirmModal()">關閉</button>
+          <button class="btn btn-primary btn-sm" id="btnSubmitDeposit" onclick="submitDepositConfirm()" style="background: #059669; border-color: #059669; font-weight: 700; box-shadow: 0 1px 3px rgba(5,150,105,0.3);">
+            ✅ 確認入帳存檔
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: 講師版稅單筆【勾核已撥款】確認 -->
+  <div class="modal-overlay" id="teacherDisburseModal">
+    <div class="modal-box" style="max-width: 540px;">
+      <div class="modal-header" style="margin-bottom: 0.8rem; padding-bottom: 0.6rem;">
+        <h3 class="modal-title" id="teacherDisburseModalTitle" style="display: flex; align-items: center; gap: 0.5rem; color: #065f46; font-size: 1.15rem;">
+          💸 講師版稅款項【勾核已撥款】確認
+        </h3>
+        <button class="modal-close" onclick="closeTeacherDisburseModal()">&times;</button>
+      </div>
+      <input type="hidden" id="modalDisburseSettlementId">
+      
+      <!-- 摘要資訊卡片 -->
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.9rem 1rem; margin-bottom: 1.1rem;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.88rem;">
+          <div><strong style="color: #475569;">授課講師：</strong><span id="disburseSummaryTeacher" style="color: #065f46; font-weight: 700;">-</span></div>
+          <div><strong style="color: #475569;">本期應付版稅：</strong><span id="disburseSummaryAmount" style="color: #0f766e; font-weight: 800;">-</span></div>
+          <div style="grid-column: span 2;"><strong style="color: #475569;">課程名稱：</strong><span id="disburseSummaryCourse" style="font-weight: 600;">-</span></div>
+          <div><strong style="color: #475569;">結算期別：</strong><span id="disburseSummaryPeriod" style="color: #1e40af; font-weight: 600;">-</span></div>
+          <div><strong style="color: #475569;">歸屬撥款批次：</strong><span id="disburseSummaryBatch" style="color: #b45309; font-weight: 700;">-</span></div>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1rem;">
+        <label class="form-label" style="font-weight: 700;">實際撥款日期 <span style="color: #dc2626;">*</span></label>
+        <input type="text" class="form-control" id="modalActualDisburseDate" placeholder="例：115年11月15日 或 2026-11-15">
+        <div style="font-size: 0.78rem; color: #64748b; margin-top: 0.25rem;">系統已預設今日日期，請填寫實際經會計核撥至老師帳戶之日期</div>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1.1rem;">
+        <label class="form-label" style="font-weight: 700;">會計撥款備註 (選填)</label>
+        <input type="text" class="form-control" id="modalDisburseNote" placeholder="例：已與會計確認無誤 / 由一銀轉帳撥款完成">
+      </div>
+
+      <div id="disburseAlreadyStatusBox" style="display: none; background: #ecfdf5; border: 1.5px solid #86efac; border-radius: 8px; padding: 0.75rem 0.9rem; margin-bottom: 1.1rem; font-size: 0.85rem; color: #065f46; line-height: 1.5;">
+        <!-- 顯示歷史撥款資訊 -->
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 0.9rem;">
+        <div>
+          <button class="btn btn-secondary btn-sm" id="btnCancelDisburseCheck" onclick="submitCancelTeacherDisburse()" style="display: none; color: #dc2626; border-color: #fca5a5; font-weight: 600;">
+            ↩️ 取消勾核 (恢復待撥款)
+          </button>
+        </div>
+        <div style="display: flex; gap: 0.6rem;">
+          <button class="btn btn-secondary btn-sm" onclick="closeTeacherDisburseModal()">關閉</button>
+          <button class="btn btn-primary btn-sm" id="btnSubmitTeacherDisburse" onclick="submitTeacherDisburseConfirm()" style="background: #059669; border-color: #059669; font-weight: 700; box-shadow: 0 1px 3px rgba(5,150,105,0.3);">
+            ✅ 確認撥款存檔
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: 講師版稅【5月/11月批次整批撥款勾核】確認 -->
+  <div class="modal-overlay" id="teacherBatchDisburseModal">
+    <div class="modal-box" style="max-width: 600px;">
+      <div class="modal-header" style="margin-bottom: 0.8rem; padding-bottom: 0.6rem;">
+        <h3 class="modal-title" style="display: flex; align-items: center; gap: 0.5rem; color: #065f46; font-size: 1.15rem;">
+          ⚡ 批次勾核：<span id="batchModalTitleBatchName">115年11月批次</span> 講師版稅已撥款
+        </h3>
+        <button class="modal-close" onclick="closeTeacherBatchDisburseModal()">&times;</button>
+      </div>
+
+      <div style="font-size: 0.88rem; color: #334155; margin-bottom: 1rem; line-height: 1.5;">
+        已與會計核對本批次應付講師版稅清冊無誤後，可直接在此一鍵將以下老師的款項整批勾核為<strong>「已撥款」</strong>存檔：
+      </div>
+
+      <!-- 各老師金額彙整清冊 -->
+      <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; max-height: 200px; overflow-y: auto;">
+        <table style="width: 100%; font-size: 0.9rem; border-collapse: collapse;">
+          <thead>
+            <tr style="border-bottom: 1.5px solid #cbd5e1; color: #475569; text-align: left;">
+              <th style="padding-bottom: 0.4rem;">授課講師</th>
+              <th style="padding-bottom: 0.4rem; text-align: center;">累計期數</th>
+              <th style="padding-bottom: 0.4rem; text-align: right;">應付版稅總計</th>
+            </tr>
+          </thead>
+          <tbody id="batchModalTeacherListTbody">
+            <!-- 動態填入各老師金額 -->
+          </tbody>
+          <tfoot>
+            <tr style="border-top: 2px solid #94a3b8; font-weight: 800; color: #065f46;">
+              <td style="padding-top: 0.6rem;">全體講師總計</td>
+              <td style="padding-top: 0.6rem; text-align: center;" id="batchModalTotalCount">-</td>
+              <td style="padding-top: 0.6rem; text-align: right; color: #059669; font-size: 1.1rem;" id="batchModalTotalAmount">-</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1rem;">
+        <label class="form-label" style="font-weight: 700;">實際撥款日期 <span style="color: #dc2626;">*</span></label>
+        <input type="text" class="form-control" id="modalBatchDisburseDate" placeholder="例：115年11月15日 或 2026-11-15">
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1.25rem;">
+        <label class="form-label" style="font-weight: 700;">會計整批撥款核銷備註 (選填)</label>
+        <input type="text" class="form-control" id="modalBatchDisburseNote" placeholder="例：已與會計核對總金額，由第一銀行整批電匯完成">
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.6rem; border-top: 1px solid var(--border); padding-top: 0.9rem;">
+        <button class="btn btn-secondary btn-sm" onclick="closeTeacherBatchDisburseModal()">取消</button>
+        <button class="btn btn-primary btn-sm" onclick="submitTeacherBatchDisburseConfirm()" style="background: #059669; border-color: #059669; font-weight: 700; box-shadow: 0 2px 6px rgba(5,150,105,0.3);">
+          ⚡ 確認全數勾核已撥款存檔
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: 文件列印與即時預覽中心 (連線實體影印機) -->
   <div class="modal-overlay" id="printModal">
     <div class="modal-box print-modal-box">
@@ -583,6 +846,6 @@
     <p style="margin-top: 0.3rem; font-size: 0.75rem;">依據會計準則、平台商務合約與講師分潤協議設計 &bull; 支援 104、Hahow、PPA 等多平台線上課程</p>
   </footer>
 
-  <script src="app.js?t=20260915v368"></script>
+  <script src="app.js?t=20260916v375"></script>
 </body>
 </html>

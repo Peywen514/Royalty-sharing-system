@@ -6,12 +6,15 @@ let currentPlatformName = "104學習平台";
 let gasCodeSnippet = "";
 let gasPlatformCode = "";
 let gasTeacherCode = "";
+let currentAllInvoiceItems = [];
+let currentAllSettlementItems = [];
 
 document.addEventListener("DOMContentLoaded", () => {
   loadConfigs();
   refreshDetectedFiles();
   loadGoogleSheetsConfig();
   loadHistory();
+  loadReminders();
   loadPrinters();
   
   const urlParams = new URLSearchParams(window.location.search);
@@ -41,6 +44,8 @@ function switchTab(tabId) {
 
   if (tabId === "tab-history") {
     loadHistory();
+  } else if (tabId === "tab-reminders") {
+    loadReminders();
   }
 }
 
@@ -433,7 +438,7 @@ function renderAuditResults(data) {
           <span style="color: #64748b; font-size: 0.82rem;">(發票收據申請單將以此日期開立，完全一致)</span>
         </div>
         <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <span style="font-weight: 700; color: #065f46; font-size: 0.9rem;">💰 預計入帳日 (隔月底)：</span>
+          <span style="font-weight: 700; color: #065f46; font-size: 0.9rem;">💰 預計入帳日 (次月起算35天遇假日順延)：</span>
           <span style="font-size: 1.05rem; font-weight: 800; color: #059669; background: white; padding: 0.15rem 0.5rem; border-radius: 4px; border: 1px solid #bbf7d0;">${expectedDeposit}</span>
         </div>
       </div>
@@ -447,14 +452,27 @@ function renderAuditResults(data) {
   data.audit_items.forEach(item => {
     const card = document.createElement("div");
     card.className = "metric-card";
-    const isOk = item.matched;
-    card.innerHTML = `
-      <div class="metric-label">${item.label}</div>
-      <div class="metric-val">${item.platform_val}</div>
-      <div class="metric-diff ${isOk ? 'metric-matched' : 'metric-mismatched'}">
-        <span>${isOk ? '✔ 完全吻合' : '✖ 差異: ' + item.diff}</span>
-      </div>
-    `;
+    if (item.is_deposit_card) {
+      card.style.borderColor = "#10b981";
+      card.style.background = "#f0fdf4";
+      card.style.boxShadow = "0 2px 8px rgba(16, 185, 129, 0.15)";
+      card.innerHTML = `
+        <div class="metric-label" style="color: #065f46; font-weight: 700;">💰 ${item.label}</div>
+        <div class="metric-val" style="color: #059669; font-size: 1.35rem; font-weight: 800;">${item.platform_val}</div>
+        <div class="metric-diff metric-matched" style="color: #047857; background: #dcfce7; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">
+          <span>✔ 免人工算：次月起算35天遇假日順延</span>
+        </div>
+      `;
+    } else {
+      const isOk = item.matched;
+      card.innerHTML = `
+        <div class="metric-label">${item.label}</div>
+        <div class="metric-val">${item.platform_val}</div>
+        <div class="metric-diff ${isOk ? 'metric-matched' : 'metric-mismatched'}">
+          <span>${isOk ? '✔ 完全吻合' : '✖ 差異: ' + item.diff}</span>
+        </div>
+      `;
+    }
     metricCards.appendChild(card);
   });
 
@@ -553,6 +571,7 @@ async function generateInvoiceDoc() {
       // 自動同步歸檔至歷史資料庫
       await importToSystem(true);
       loadHistory();
+      loadReminders();
       alert(`已成功生成發票請款單！\n\n📄 申請日期：${applyDate} (與平台版稅明細表完全一致)\n💰 預計入帳日：${expectedDeposit}\n\n檔案已存於：\n${data.file_path}`);
     } else {
       alert("生成失敗: " + data.error);
@@ -710,6 +729,7 @@ async function runBatchAll() {
 
       // 自動嘗試同步至 Google Sheet
       syncCurrentToGoogleSheets();
+      loadReminders();
 
       const userMeta = (data.audit && data.audit.user_data && data.audit.user_data.meta) || {};
       const batchApplyDate = userMeta.apply_date || getInvoiceApplyDate(rocYear, month);
@@ -1312,12 +1332,27 @@ async function loadHistory() {
     if (invTbody) {
       invTbody.innerHTML = "";
       const invoices = data.invoices || [];
+      // 同步維護全域請款單資料
+      invoices.forEach(inv => {
+        const existIdx = currentAllInvoiceItems.findIndex(x => x.id === inv.id);
+        if (existIdx >= 0) {
+          currentAllInvoiceItems[existIdx] = { ...currentAllInvoiceItems[existIdx], ...inv };
+        } else {
+          currentAllInvoiceItems.push(inv);
+        }
+      });
+
       if (invoices.length === 0) {
-        invTbody.innerHTML = '<tr><td colspan="8" class="text-center" style="color: var(--text-muted); padding: 1.25rem;">尚無已開立之《發票收據申請單》存檔紀錄</td></tr>';
+        invTbody.innerHTML = '<tr><td colspan="9" class="text-center" style="color: var(--text-muted); padding: 1.25rem;">尚無已開立之《發票收據申請單》存檔紀錄</td></tr>';
       } else {
         invoices.forEach(inv => {
           const tr = document.createElement("tr");
           const fname = inv.file_path ? inv.file_path.split(/[\\\\/]/).pop() : "附件1_發票收據申請單.docx";
+          const isDep = Boolean(inv.is_deposited);
+          const depositBadge = isDep 
+            ? `<button class="btn btn-sm btn-success-soft" onclick="openDepositConfirmModal(${inv.id})" title="已完成入帳勾核，點擊查看確認紀錄或修改" style="font-size: 0.8rem; font-weight: 700;">✅ 已入帳 (${inv.deposited_date || '已確認'})</button>`
+            : `<button class="btn btn-sm btn-success" onclick="openDepositConfirmModal(${inv.id})" title="點擊勾核已入帳存檔" style="font-size: 0.8rem; font-weight: 700; box-shadow: 0 1px 3px rgba(5,150,105,0.25);">✅ 勾核已入帳</button>`;
+
           tr.innerHTML = `
             <td style="font-weight: 600;">${inv.period}</td>
             <td>${inv.apply_date}</td>
@@ -1325,6 +1360,7 @@ async function loadHistory() {
             <td><code>${inv.tax_id}</code></td>
             <td class="text-right" style="color: var(--primary); font-weight: 700;">NT$ ${Number(inv.amount).toLocaleString()}</td>
             <td>${inv.expected_deposit_date}</td>
+            <td class="text-center">${depositBadge}</td>
             <td><span style="font-size: 0.85rem; color: #334155;">📄 ${fname}</span></td>
             <td class="text-center" style="white-space: nowrap;">
               <button class="btn btn-print btn-sm" onclick="openPrintModal({ type: 'invoice', id: ${inv.id}, filePath: '${(inv.file_path || '').replace(/\\/g, '/')}' })">🖨️ 列印預覽</button>
@@ -1339,17 +1375,110 @@ async function loadHistory() {
       }
     }
 
-    // 2. 講師分潤結算明細表格
+    // 2. 講師分潤結算明細表格與 5月/11月 撥款看板
     const setTbody = document.querySelector("#historySettlementTable tbody");
     if (setTbody) {
       setTbody.innerHTML = "";
       const settlements = data.settlements || [];
+      currentAllSettlementItems = settlements;
+
+      // 統計 5月/11月 待撥款批次與各老師累計金額
+      const pendingBatches = {};
+      settlements.forEach(s => {
+        const b = s.disbursed_batch || getDisburseBatch(s.period);
+        if (!pendingBatches[b]) {
+          pendingBatches[b] = {
+            batchName: b,
+            totalAmount: 0,
+            teacherTotals: {},
+            items: []
+          };
+        }
+        if (!s.is_disbursed) {
+          pendingBatches[b].totalAmount += Number(s.payable_amount || 0);
+          if (!pendingBatches[b].teacherTotals[s.teacher_name]) {
+            pendingBatches[b].teacherTotals[s.teacher_name] = { amount: 0, count: 0 };
+          }
+          pendingBatches[b].teacherTotals[s.teacher_name].amount += Number(s.payable_amount || 0);
+          pendingBatches[b].teacherTotals[s.teacher_name].count += 1;
+          pendingBatches[b].items.push(s);
+        }
+      });
+
+      // 渲染頂部講師撥款核算看板
+      const batchActionArea = document.getElementById("teacherBatchActionArea");
+      const summaryPills = document.getElementById("teacherSummaryPills");
+      if (summaryPills && batchActionArea) {
+        summaryPills.innerHTML = "";
+        batchActionArea.innerHTML = "";
+
+        const activeBatchKeys = Object.keys(pendingBatches).filter(k => pendingBatches[k].items.length > 0);
+        if (activeBatchKeys.length === 0) {
+          if (settlements.length > 0) {
+            summaryPills.innerHTML = `
+              <div class="teacher-summary-pill" style="background: #ecfdf5; border-color: #86efac; color: #065f46; font-weight: 700; width: 100%;">
+                🎉 目前系統內所有期別之講師版稅款項皆已完成撥款核銷！（後續如產出新月份結算，將自動納入下期 5月/11月 撥款批次）
+              </div>
+            `;
+          } else {
+            summaryPills.innerHTML = `
+              <div style="font-size: 0.85rem; color: #64748b;">尚無結算紀錄</div>
+            `;
+          }
+        } else {
+          const primaryKey = activeBatchKeys[0];
+          const pBatch = pendingBatches[primaryKey];
+
+          // 呈現各老師應付版稅
+          Object.keys(pBatch.teacherTotals).forEach(tName => {
+            const tData = pBatch.teacherTotals[tName];
+            const pill = document.createElement("div");
+            pill.className = "teacher-summary-pill highlight";
+            pill.innerHTML = `
+              <span style="font-weight: 700; color: #065f46;">🧑‍🏫 ${tName} 老師</span>
+              <span style="color: #0f766e; font-weight: 800; font-size: 1.05rem;">NT$ ${Math.round(tData.amount).toLocaleString()}</span>
+              <span style="font-size: 0.78rem; color: #64748b;">(累計 ${tData.count} 期)</span>
+            `;
+            summaryPills.appendChild(pill);
+          });
+
+          // 總計 Pill
+          const totalPill = document.createElement("div");
+          totalPill.className = "teacher-summary-pill";
+          totalPill.style.background = "#ecfdf5";
+          totalPill.style.borderColor = "#86efac";
+          totalPill.innerHTML = `
+            <span style="font-weight: 700; color: #065f46;">💰 ${primaryKey} 應付總計</span>
+            <span style="color: #059669; font-weight: 800; font-size: 1.15rem;">NT$ ${Math.round(pBatch.totalAmount).toLocaleString()}</span>
+          `;
+          summaryPills.appendChild(totalPill);
+
+          // 一鍵整批勾核按鈕
+          batchActionArea.innerHTML = `
+            <button class="btn btn-sm btn-primary" onclick="openTeacherBatchDisburseModal('${primaryKey}')" style="background: #059669; border-color: #059669; font-weight: 700; padding: 0.45rem 1rem; box-shadow: 0 2px 6px rgba(5,150,105,0.3);">
+              ⚡ 與會計確認無誤，一鍵勾核【${primaryKey}】全數已撥款
+            </button>
+          `;
+        }
+      }
+
       if (settlements.length === 0) {
-        setTbody.innerHTML = '<tr><td colspan="11" class="text-center" style="color: var(--text-muted); padding: 1.25rem;">尚無講師版稅分潤結算紀錄</td></tr>';
+        setTbody.innerHTML = '<tr><td colspan="12" class="text-center" style="color: var(--text-muted); padding: 1.25rem;">尚無講師版稅分潤結算紀錄</td></tr>';
       } else {
         settlements.forEach(s => {
           const tr = document.createElement("tr");
           const fname = s.excel_path ? s.excel_path.split(/[\\/]/).pop() : "講師版稅明細.xlsx";
+          const isDisbursed = Boolean(s.is_disbursed);
+          const bName = s.disbursed_batch || getDisburseBatch(s.period);
+
+          const statusBadge = isDisbursed
+            ? `<span class="reminder-status-pill pill-deposited">✅ 已撥款 (${s.disbursed_date || '已確認'})</span>`
+            : `<span class="reminder-status-pill pill-pending-disburse">⏳ 待撥款 (${bName})</span>`;
+
+          const actionDisburseBtn = isDisbursed
+            ? `<button class="btn btn-success-light btn-sm" onclick="openTeacherDisburseModal(${s.id})" title="已撥款，點擊查看撥款紀錄或修改" style="font-weight: 700;">✅ 已撥款</button>`
+            : `<button class="btn btn-success btn-sm" onclick="openTeacherDisburseModal(${s.id})" title="與會計確認後點擊勾核已撥款" style="font-weight: 700; box-shadow: 0 1px 3px rgba(5,150,105,0.25);">💸 勾核已撥款</button>`;
+
           tr.innerHTML = `
             <td style="font-weight: 600;">${s.period}</td>
             <td style="color: #065f46; font-weight: 700;">${s.teacher_name}</td>
@@ -1360,8 +1489,10 @@ async function loadHistory() {
             <td class="text-right">NT$ ${Math.round(s.net_profit).toLocaleString()}</td>
             <td class="text-center">${(s.share_rate * 100).toFixed(0)}%</td>
             <td class="text-right" style="color: #0f766e; font-weight: 700;">NT$ ${Number(s.payable_amount).toLocaleString()}</td>
+            <td class="text-center">${statusBadge}</td>
             <td><span style="font-size: 0.85rem; color: #334155;">📊 ${fname}</span></td>
             <td class="text-center" style="white-space: nowrap;">
+              ${actionDisburseBtn}
               <button class="btn btn-print btn-sm" onclick="openPrintModal({ type: 'settlement', id: ${s.id}, filePath: '${(s.excel_path || '').replace(/\\/g, '/')}' })">🖨️ 列印預覽</button>
               <button class="btn btn-secondary btn-sm" onclick="openFilePath(this, '${(s.excel_path || '').replace(/\\/g, '/')}')">📊 開啟</button>
               <button class="btn btn-secondary btn-sm" onclick="openFileFolder(this, '${(s.excel_path || '').replace(/\\/g, '/')}')">📂 目錄</button>
@@ -1433,6 +1564,599 @@ async function deleteHistoryItem(type, id) {
     }
   } catch (err) {
     alert("刪除請求異常: " + err.message);
+  }
+}
+
+// ====================================================
+// 🔔 平台版稅預計入帳提醒與追蹤管理模組
+// ====================================================
+
+async function loadReminders(showToast = false) {
+  try {
+    const res = await fetch("/api/reminders");
+    const data = await res.json();
+
+    // 1. 更新指標計數卡片
+    const cntTom = document.getElementById("cntRemindTomorrow");
+    const cntTod = document.getElementById("cntRemindToday");
+    const cntUpc = document.getElementById("cntRemindUpcoming");
+    const cntTot = document.getElementById("cntRemindTotal");
+    const todayLbl = document.getElementById("reminderTodayLabel");
+
+    if (cntTom) cntTom.textContent = `${data.counts.tomorrow || 0} 筆`;
+    if (cntTod) cntTod.textContent = `${data.counts.today || 0} 筆`;
+    if (cntUpc) cntUpc.textContent = `${data.counts.upcoming || 0} 筆`;
+    if (cntTot) cntTot.textContent = `${data.counts.total || 0} 筆`;
+    if (todayLbl) todayLbl.textContent = `📅 今日基準日：${data.today_roc || ''} (${data.today_str || ''})`;
+
+    // 2. 導航列右上角紅點徽章
+    const navBadge = document.getElementById("navReminderBadge");
+    if (navBadge) {
+      if (data.counts.tomorrow > 0) {
+        navBadge.style.display = "inline-block";
+        navBadge.textContent = `${data.counts.tomorrow} (明日入帳)`;
+        navBadge.style.background = "#d97706";
+      } else if (data.counts.today > 0) {
+        navBadge.style.display = "inline-block";
+        navBadge.textContent = `${data.counts.today} (今日到期)`;
+        navBadge.style.background = "#dc2626";
+      } else if (data.counts.upcoming > 0) {
+        navBadge.style.display = "inline-block";
+        navBadge.textContent = `${data.counts.upcoming}`;
+        navBadge.style.background = "#2563eb";
+      } else {
+        navBadge.style.display = "none";
+      }
+    }
+
+    // 3. 全域頂部橫幅 (於前1天或當天自動顯著提示)
+    const banner = document.getElementById("globalReminderBanner");
+    if (banner) {
+      if (data.counts.tomorrow > 0) {
+        const first = data.tomorrow[0];
+        const amtStr = Number(first.amount).toLocaleString();
+        banner.style.display = "block";
+        banner.innerHTML = `
+          <div style="background: #fffbeb; border: 2px solid #f59e0b; border-radius: 10px; padding: 0.95rem 1.3rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.8rem; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.15);">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <span style="font-size: 1.6rem;">🔔</span>
+              <div>
+                <div style="font-weight: 800; color: #b45309; font-size: 1.05rem;">
+                  【平台版稅入帳前 1 天提醒】明日（${first.expected_deposit_date}）為【${first.title}】平台版稅預計入帳日！
+                </div>
+                <div style="font-size: 0.88rem; color: #78350f; margin-top: 0.2rem;">
+                  期別：${first.period} | 預計撥入金額：<strong>NT$ ${amtStr}</strong> | 申請發票日期：${first.apply_date}。提醒您明日留意銀行帳戶撥款狀況。
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-primary btn-sm" onclick="switchTab('tab-reminders')">👉 查看入帳時程追蹤</button>
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('globalReminderBanner').style.display='none'">✕ 關閉</button>
+            </div>
+          </div>
+        `;
+      } else if (data.counts.today > 0) {
+        const first = data.today[0];
+        const amtStr = Number(first.amount).toLocaleString();
+        banner.style.display = "block";
+        banner.innerHTML = `
+          <div style="background: #fef2f2; border: 2px solid #ef4444; border-radius: 10px; padding: 0.95rem 1.3rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.8rem; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.15);">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <span style="font-size: 1.6rem;">💰</span>
+              <div>
+                <div style="font-weight: 800; color: #b91c1c; font-size: 1.05rem;">
+                  【平台版稅今日到期通知】今日（${first.expected_deposit_date}）為【${first.title}】平台版稅預計入帳日！
+                </div>
+                <div style="font-size: 0.88rem; color: #7f1d1d; margin-top: 0.2rem;">
+                  期別：${first.period} | 應撥款金額：<strong>NT$ ${amtStr}</strong>。請核對公司銀行存簿或網銀是否已入帳。
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-danger btn-sm" onclick="switchTab('tab-reminders')">👉 查看入帳時程追蹤</button>
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('globalReminderBanner').style.display='none'">✕ 關閉</button>
+            </div>
+          </div>
+        `;
+      } else {
+        banner.style.display = "none";
+      }
+    }
+
+    // 4. 渲染表格
+    const tbody = document.getElementById("remindersTableBody");
+    if (tbody) {
+      tbody.innerHTML = "";
+      const items = data.all_items || [];
+      // 同步維護全域請款單資料
+      items.forEach(it => {
+        const existIdx = currentAllInvoiceItems.findIndex(x => x.id === it.id);
+        if (existIdx >= 0) {
+          currentAllInvoiceItems[existIdx] = { ...currentAllInvoiceItems[existIdx], ...it };
+        } else {
+          currentAllInvoiceItems.push(it);
+        }
+      });
+
+      if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="color: var(--text-muted); padding: 1.5rem;">目前資料庫中尚無開立之發票請款申請單</td></tr>';
+      } else {
+        items.forEach(it => {
+          const tr = document.createElement("tr");
+          let pillClass = "pill-later";
+          let icon = "⏳";
+          if (it.is_deposited) {
+            pillClass = "pill-deposited";
+            icon = "✅";
+          } else if (it.status === "tomorrow") {
+            pillClass = "pill-tomorrow";
+            icon = "🔔";
+          } else if (it.status === "today") {
+            pillClass = "pill-today";
+            icon = "💰";
+          } else if (it.status === "upcoming") {
+            pillClass = "pill-upcoming";
+            icon = "📅";
+          } else if (it.status === "overdue") {
+            pillClass = "pill-overdue";
+            icon = "⚠️";
+          }
+
+          const fname = it.file_path ? it.file_path.split(/[\\\\/]/).pop() : "發票請款單.docx";
+          const safePath = (it.file_path || "").replace(/\\/g, "/");
+
+          const checkBtn = it.is_deposited ? `
+            <button class="btn btn-success-light btn-sm" onclick="openDepositConfirmModal(${it.id})" title="已完成入帳勾核，點擊查看入帳確認紀錄或修改" style="font-weight: 700; white-space: nowrap;">✅ 已入帳</button>
+          ` : `
+            <button class="btn btn-success btn-sm" onclick="openDepositConfirmModal(${it.id})" title="平台款項入帳後點擊勾核存檔" style="font-weight: 700; white-space: nowrap; box-shadow: 0 1px 3px rgba(5,150,105,0.3);">✅ 勾核已入帳</button>
+          `;
+
+          tr.innerHTML = `
+            <td style="font-weight: 700;">${it.period}</td>
+            <td><strong>${it.title}</strong><div style="font-size: 0.78rem; color: #64748b;">統編: ${it.tax_id}</div></td>
+            <td>${it.apply_date}</td>
+            <td class="text-right" style="font-weight: 700; color: #1e40af;">NT$ ${Number(it.amount).toLocaleString()}</td>
+            <td style="font-weight: 700; color: #047857;">${it.expected_deposit_date}</td>
+            <td>
+              <span class="reminder-status-pill ${pillClass}">
+                ${icon} ${it.status_text}
+              </span>
+            </td>
+            <td class="text-center" style="white-space: nowrap;">
+              <button class="btn btn-print btn-sm" onclick="openPrintModal({ type: 'invoice', id: ${it.id}, filePath: '${safePath}' })" title="預覽或列印此請款單">🖨️ 預覽</button>
+              ${checkBtn}
+              <a class="btn btn-secondary btn-sm" href="/api/download?file=${encodeURIComponent(safePath)}" download="${fname}" title="下載檔案">⬇️</a>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    }
+
+    if (showToast) {
+      if (typeof showCustomToast === "function") {
+        showCustomToast("info", `入帳提醒已即時刷新！目前共追蹤 ${data.counts.total} 筆請款單`);
+      } else {
+        alert(`已成功檢查最新入帳時程！\n\n• 明日即將入帳: ${data.counts.tomorrow} 筆\n• 今日到期入帳: ${data.counts.today} 筆\n• 7天內即將入帳: ${data.counts.upcoming} 筆`);
+      }
+    }
+  } catch (err) {
+    console.error("載入入帳提醒失敗:", err);
+  }
+}
+
+// ====================================================
+// 💰 發票請款單入帳確認勾核模組
+// ====================================================
+
+function openDepositConfirmModal(invId) {
+  const it = currentAllInvoiceItems.find(x => Number(x.id) === Number(invId)) || {};
+  const modal = document.getElementById("depositConfirmModal");
+  if (!modal) return;
+
+  document.getElementById("modalDepositInvoiceId").value = invId;
+  document.getElementById("depositSummaryPeriod").innerText = it.period || "-";
+  document.getElementById("depositSummaryAmount").innerText = `NT$ ${Number(it.amount || 0).toLocaleString()}`;
+  document.getElementById("depositSummaryTitle").innerText = `${it.title || '-'} (統編: ${it.tax_id || '-'})`;
+  document.getElementById("depositSummaryExpectedDate").innerText = it.expected_deposit_date || "-";
+
+  const isDep = Boolean(it.is_deposited);
+  const titleEl = document.getElementById("depositModalTitle");
+  const dateInput = document.getElementById("modalActualDepositDate");
+  const noteInput = document.getElementById("modalDepositNote");
+  const statusBox = document.getElementById("depositAlreadyStatusBox");
+  const cancelBtn = document.getElementById("btnCancelDepositCheck");
+  const submitBtn = document.getElementById("btnSubmitDeposit");
+
+  // 計算今日民國年日期預設值 (例如 115年09月16日)
+  const today = new Date();
+  const rocYear = today.getFullYear() - 1911;
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  const defaultTodayRoc = `${rocYear}年${mm}月${dd}日`;
+
+  if (isDep) {
+    titleEl.innerHTML = "📋 平台版稅款項【已入帳確認紀錄】";
+    dateInput.value = it.deposited_date || defaultTodayRoc;
+    noteInput.value = it.deposited_note || "";
+    statusBox.style.display = "block";
+    statusBox.innerHTML = `
+      <div style="font-weight: 700; margin-bottom: 0.3rem;">✅ 本筆請款款項已完成入帳確認！</div>
+      <div>• 實際入帳日：<strong style="color: #047857;">${it.deposited_date || '-'}</strong></div>
+      <div>• 勾核紀錄時間：<span style="color: #64748b;">${it.deposited_at || '-'}</span></div>
+      <div>• 核帳備註：<span>${it.deposited_note || '（無特定備註）'}</span></div>
+    `;
+    cancelBtn.style.display = "inline-block";
+    submitBtn.innerText = "💾 儲存修改紀錄";
+  } else {
+    titleEl.innerHTML = "💰 平台版稅款項【勾核已入帳】確認";
+    dateInput.value = defaultTodayRoc;
+    noteInput.value = "已確認銀行帳戶入帳款項無誤";
+    statusBox.style.display = "none";
+    cancelBtn.style.display = "none";
+    submitBtn.innerText = "✅ 確認入帳存檔";
+  }
+
+  modal.classList.add("active");
+}
+
+function closeDepositConfirmModal() {
+  const modal = document.getElementById("depositConfirmModal");
+  if (modal) modal.classList.remove("active");
+}
+
+async function submitDepositConfirm() {
+  const invId = document.getElementById("modalDepositInvoiceId").value;
+  const depDate = document.getElementById("modalActualDepositDate").value.trim();
+  const depNote = document.getElementById("modalDepositNote").value.trim();
+
+  if (!depDate) {
+    alert("請輸入實際入帳日期！");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/reminders/confirm_deposit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: invId,
+        is_deposited: 1,
+        deposited_date: depDate,
+        note: depNote
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeDepositConfirmModal();
+      await loadReminders();
+      await loadHistory();
+      if (typeof showCustomToast === "function") {
+        showCustomToast("success", `✅ 款項已成功勾核入帳！入帳日：${depDate}`);
+      } else {
+        alert(`🎉 入帳確認紀錄已成功儲存！\n\n實際入帳日期：${depDate}\n狀態已更新為【已入帳】。`);
+      }
+    } else {
+      alert("儲存入帳確認紀錄失敗: " + (data.error || "未知錯誤"));
+    }
+  } catch (err) {
+    alert("連線失敗: " + err.message);
+  }
+}
+
+async function submitCancelDeposit() {
+  const invId = document.getElementById("modalDepositInvoiceId").value;
+  if (!confirm("確定要取消此筆請款單的入帳確認紀錄，並將其恢復為「待入帳」追蹤狀態嗎？")) {
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/reminders/confirm_deposit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: invId,
+        is_deposited: 0
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeDepositConfirmModal();
+      await loadReminders();
+      await loadHistory();
+      if (typeof showCustomToast === "function") {
+        showCustomToast("info", "已成功恢復為待入帳追蹤狀態。");
+      } else {
+        alert("已成功取消入帳確認，該款項已恢復為「待入帳」追蹤狀態。");
+      }
+    } else {
+      alert("操作失敗: " + (data.error || "未知錯誤"));
+    }
+  } catch (err) {
+    alert("連線失敗: " + err.message);
+  }
+}
+
+// ====================================================
+// 🧑‍🏫 講師版稅撥款確認模組 (一年兩次: 5月 / 11月)
+// ====================================================
+
+function getDisburseBatch(periodStr) {
+  if (!periodStr) return "115年11月批次";
+  const m = periodStr.match(/(\d+)\s*年\s*(\d+)\s*月/);
+  if (!m) return "115年11月批次";
+  const y = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10);
+  if (mo >= 5 && mo <= 10) {
+    return `${y}年11月批次`;
+  } else if (mo >= 11) {
+    return `${y + 1}年5月批次`;
+  } else {
+    return `${y}年5月批次`;
+  }
+}
+
+function openTeacherDisburseModal(id) {
+  const s = currentAllSettlementItems.find(x => Number(x.id) === Number(id));
+  const modal = document.getElementById("teacherDisburseModal");
+  if (!s || !modal) return;
+
+  const bName = s.disbursed_batch || getDisburseBatch(s.period);
+  document.getElementById("modalDisburseSettlementId").value = id;
+  document.getElementById("disburseSummaryTeacher").innerText = s.teacher_name || "-";
+  document.getElementById("disburseSummaryAmount").innerText = `NT$ ${Number(s.payable_amount || 0).toLocaleString()}`;
+  document.getElementById("disburseSummaryCourse").innerText = s.course_name || "-";
+  document.getElementById("disburseSummaryPeriod").innerText = s.period || "-";
+  document.getElementById("disburseSummaryBatch").innerText = bName;
+
+  const isDisbursed = Boolean(s.is_disbursed);
+  const titleEl = document.getElementById("teacherDisburseModalTitle");
+  const dateInput = document.getElementById("modalActualDisburseDate");
+  const noteInput = document.getElementById("modalDisburseNote");
+  const statusBox = document.getElementById("disburseAlreadyStatusBox");
+  const cancelBtn = document.getElementById("btnCancelDisburseCheck");
+  const submitBtn = document.getElementById("btnSubmitTeacherDisburse");
+
+  const today = new Date();
+  const rocYear = today.getFullYear() - 1911;
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  const defaultTodayRoc = `${rocYear}年${mm}月${dd}日`;
+
+  if (isDisbursed) {
+    titleEl.innerHTML = "📋 講師版稅款項【已撥款確認紀錄】";
+    dateInput.value = s.disbursed_date || defaultTodayRoc;
+    noteInput.value = s.disbursed_note || "";
+    statusBox.style.display = "block";
+    statusBox.innerHTML = `
+      <div style="font-weight: 700; margin-bottom: 0.3rem;">✅ 此筆版稅已撥款給 ${s.teacher_name} 老師！</div>
+      <div>• 實際撥款日：<strong style="color: #047857;">${s.disbursed_date || '-'}</strong></div>
+      <div>• 歸屬批次：<strong style="color: #b45309;">${s.disbursed_batch || bName}</strong></div>
+      <div>• 勾核紀錄時間：<span style="color: #64748b;">${s.disbursed_at || '-'}</span></div>
+      <div>• 會計核帳備註：<span>${s.disbursed_note || '（無特定備註）'}</span></div>
+    `;
+    cancelBtn.style.display = "inline-block";
+    submitBtn.innerText = "💾 儲存修改紀錄";
+  } else {
+    titleEl.innerHTML = "💸 講師版稅款項【勾核已撥款】確認";
+    dateInput.value = defaultTodayRoc;
+    noteInput.value = "已與會計核對無誤，由第一銀行撥款完成";
+    statusBox.style.display = "none";
+    cancelBtn.style.display = "none";
+    submitBtn.innerText = "✅ 確認撥款存檔";
+  }
+
+  modal.classList.add("active");
+}
+
+function closeTeacherDisburseModal() {
+  const modal = document.getElementById("teacherDisburseModal");
+  if (modal) modal.classList.remove("active");
+}
+
+async function submitTeacherDisburseConfirm() {
+  const sId = document.getElementById("modalDisburseSettlementId").value;
+  const s = currentAllSettlementItems.find(x => Number(x.id) === Number(sId));
+  const bName = s ? (s.disbursed_batch || getDisburseBatch(s.period)) : "115年11月批次";
+  const disDate = document.getElementById("modalActualDisburseDate").value.trim();
+  const disNote = document.getElementById("modalDisburseNote").value.trim();
+
+  if (!disDate) {
+    alert("請輸入實際撥款日期！");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/settlements/confirm_disburse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: sId,
+        is_disbursed: 1,
+        disbursed_date: disDate,
+        disbursed_batch: bName,
+        note: disNote
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeTeacherDisburseModal();
+      await loadHistory();
+      if (typeof showCustomToast === "function") {
+        showCustomToast("success", `✅ 講師版稅已成功勾核撥款！撥款日：${disDate}`);
+      } else {
+        alert(`🎉 撥款確認紀錄已成功儲存！\n\n實際撥款日期：${disDate}\n狀態已更新為【已撥款】。`);
+      }
+    } else {
+      alert("儲存撥款紀錄失敗: " + (data.error || "未知錯誤"));
+    }
+  } catch (err) {
+    alert("連線失敗: " + err.message);
+  }
+}
+
+async function submitCancelTeacherDisburse() {
+  const sId = document.getElementById("modalDisburseSettlementId").value;
+  if (!confirm("確定要取消此筆講師版稅的撥款確認紀錄，將其恢復為「待撥款」狀態嗎？")) {
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/settlements/confirm_disburse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: sId,
+        is_disbursed: 0
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeTeacherDisburseModal();
+      await loadHistory();
+      if (typeof showCustomToast === "function") {
+        showCustomToast("info", "已成功恢復為待撥款狀態。");
+      } else {
+        alert("已成功取消撥款確認，該款項已恢復為「待撥款」狀態。");
+      }
+    } else {
+      alert("操作失敗: " + (data.error || "未知錯誤"));
+    }
+  } catch (err) {
+    alert("連線失敗: " + err.message);
+  }
+}
+
+// 批次整批勾核撥款
+let currentBatchPendingIds = [];
+let currentBatchTargetName = "";
+
+function openTeacherBatchDisburseModal(batchName) {
+  currentBatchTargetName = batchName;
+  const pendingItems = currentAllSettlementItems.filter(s => {
+    const b = s.disbursed_batch || getDisburseBatch(s.period);
+    return b === batchName && !s.is_disbursed;
+  });
+
+  if (pendingItems.length === 0) {
+    alert(`【${batchName}】目前沒有待撥款的項目！`);
+    return;
+  }
+
+  currentBatchPendingIds = pendingItems.map(x => x.id);
+  document.getElementById("batchModalTitleBatchName").innerText = batchName;
+
+  // 統計各老師金額
+  const teacherMap = {};
+  let totalSum = 0;
+  pendingItems.forEach(s => {
+    if (!teacherMap[s.teacher_name]) {
+      teacherMap[s.teacher_name] = { amount: 0, count: 0 };
+    }
+    teacherMap[s.teacher_name].amount += Number(s.payable_amount || 0);
+    teacherMap[s.teacher_name].count += 1;
+    totalSum += Number(s.payable_amount || 0);
+  });
+
+  const tbody = document.getElementById("batchModalTeacherListTbody");
+  tbody.innerHTML = "";
+  Object.keys(teacherMap).forEach(tName => {
+    const item = teacherMap[tName];
+    const tr = document.createElement("tr");
+    tr.style.borderBottom = "1px solid #e2e8f0";
+    tr.innerHTML = `
+      <td style="padding: 0.5rem 0; font-weight: 700; color: #065f46;">🧑‍🏫 ${tName} 老師</td>
+      <td style="padding: 0.5rem 0; text-align: center;">${item.count} 筆期別</td>
+      <td style="padding: 0.5rem 0; text-align: right; color: #0f766e; font-weight: 700;">NT$ ${Math.round(item.amount).toLocaleString()}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById("batchModalTotalCount").innerText = `${pendingItems.length} 筆期別`;
+  document.getElementById("batchModalTotalAmount").innerText = `NT$ ${Math.round(totalSum).toLocaleString()}`;
+
+  const today = new Date();
+  const rocYear = today.getFullYear() - 1911;
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  document.getElementById("modalBatchDisburseDate").value = `${rocYear}年${mm}月${dd}日`;
+  document.getElementById("modalBatchDisburseNote").value = `已與會計確認【${batchName}】總金額無誤，由第一銀行整批匯款完成`;
+
+  const modal = document.getElementById("teacherBatchDisburseModal");
+  if (modal) modal.classList.add("active");
+}
+
+function closeTeacherBatchDisburseModal() {
+  const modal = document.getElementById("teacherBatchDisburseModal");
+  if (modal) modal.classList.remove("active");
+}
+
+async function submitTeacherBatchDisburseConfirm() {
+  if (currentBatchPendingIds.length === 0) {
+    alert("沒有可勾核的項目！");
+    return;
+  }
+
+  const disDate = document.getElementById("modalBatchDisburseDate").value.trim();
+  const disNote = document.getElementById("modalBatchDisburseNote").value.trim();
+
+  if (!disDate) {
+    alert("請輸入實際撥款日期！");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/settlements/confirm_disburse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ids: currentBatchPendingIds,
+        is_disbursed: 1,
+        disbursed_date: disDate,
+        disbursed_batch: currentBatchTargetName,
+        note: disNote
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeTeacherBatchDisburseModal();
+      await loadHistory();
+      if (typeof showCustomToast === "function") {
+        showCustomToast("success", `⚡ 已成功整批勾核【${currentBatchTargetName}】共 ${data.count} 筆講師款項！`);
+      } else {
+        alert(`🎉 批次撥款確認成功！\n\n批次：${currentBatchTargetName}\n共核銷 ${data.count} 筆講師明細，撥款日：${disDate}。`);
+      }
+    } else {
+      alert("批次撥款失敗: " + (data.error || "未知錯誤"));
+    }
+  } catch (err) {
+    alert("連線失敗: " + err.message);
+  }
+}
+
+// 測試發送 Windows 桌面通知
+async function sendTestNotification() {
+  try {
+    const res = await fetch("/api/reminders/send_test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "【平台版稅入帳前1天通知測試】",
+        message: "這是一則 Windows 桌面提醒測試！\n若平台版稅入帳日前 1 天，系統將在此為您主動發送通知。"
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      if (typeof showCustomToast === "function") {
+        showCustomToast("info", "已成功發送 Windows 桌面通知！請查看電腦螢幕右下角。");
+      } else {
+        alert("已成功發送 Windows 桌面通知！請查看電腦螢幕右下角。");
+      }
+    } else {
+      alert("發送失敗: " + (data.error || "未知錯誤"));
+    }
+  } catch (err) {
+    alert("連線失敗: " + err.message);
   }
 }
 
@@ -1917,6 +2641,40 @@ function confirmPrintCurrentDoc() {
   }, 250);
 }
 
+// 台灣官方國定假日與放假日清單 (YYYY-MM-DD)
+const TAIWAN_HOLIDAYS_JS = {
+  "2024-01-01": 1, "2024-02-08": 1, "2024-02-09": 1, "2024-02-10": 1, "2024-02-11": 1, "2024-02-12": 1, "2024-02-13": 1, "2024-02-14": 1, "2024-02-28": 1, "2024-04-04": 1, "2024-04-05": 1, "2024-05-01": 1, "2024-06-10": 1, "2024-09-17": 1, "2024-10-10": 1,
+  "2025-01-01": 1, "2025-01-27": 1, "2025-01-28": 1, "2025-01-29": 1, "2025-01-30": 1, "2025-01-31": 1, "2025-02-01": 1, "2025-02-02": 1, "2025-02-28": 1, "2025-04-03": 1, "2025-04-04": 1, "2025-05-01": 1, "2025-05-30": 1, "2025-05-31": 1, "2025-10-06": 1, "2025-10-10": 1,
+  "2026-01-01": 1, "2026-01-02": 1, "2026-02-15": 1, "2026-02-16": 1, "2026-02-17": 1, "2026-02-18": 1, "2026-02-19": 1, "2026-02-20": 1, "2026-02-27": 1, "2026-02-28": 1, "2026-04-03": 1, "2026-04-04": 1, "2026-04-06": 1, "2026-05-01": 1, "2026-06-19": 1, "2026-09-25": 1, "2026-10-09": 1, "2026-10-10": 1,
+  "2027-01-01": 1, "2027-02-05": 1, "2027-02-06": 1, "2027-02-07": 1, "2027-02-08": 1, "2027-02-09": 1, "2027-02-10": 1, "2027-02-28": 1, "2027-03-01": 1, "2027-04-04": 1, "2027-04-05": 1, "2027-05-01": 1, "2027-06-09": 1, "2027-09-15": 1, "2027-10-10": 1, "2027-10-11": 1,
+  "2028-01-01": 1, "2028-01-25": 1, "2028-01-26": 1, "2028-01-27": 1, "2028-01-28": 1, "2028-02-28": 1, "2028-04-04": 1, "2028-04-05": 1, "2028-05-01": 1, "2028-05-28": 1, "2028-10-03": 1, "2028-10-10": 1
+};
+const TAIWAN_WORKDAYS_JS = {
+  "2024-02-17": 1, "2025-02-08": 1, "2026-01-10": 1, "2026-02-07": 1
+};
+
+function isTaiwanWorkingDayJS(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const dStr = `${y}-${m}-${day}`;
+  if (TAIWAN_WORKDAYS_JS[dStr]) return true;
+  if (TAIWAN_HOLIDAYS_JS[dStr]) return false;
+  const dayOfWeek = d.getDay();
+  if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+  const fixed = [`01-01`, `02-28`, `04-04`, `04-05`, `05-01`, `10-10`];
+  if (fixed.includes(`${m}-${day}`)) return false;
+  return true;
+}
+
+function getNextWorkingDayJS(d) {
+  let curr = new Date(d);
+  while (!isTaiwanWorkingDayJS(curr)) {
+    curr.setDate(curr.getDate() + 1);
+  }
+  return curr;
+}
+
 // 日期推算輔助函式
 function getInvoiceApplyDate(rocYear, month) {
   let y = parseInt(rocYear);
@@ -1925,54 +2683,55 @@ function getInvoiceApplyDate(rocYear, month) {
   return `${y}年${String(m).padStart(2, '0')}月03日`;
 }
 
-function getInvoiceDepositDate(rocYear, month) {
-  let adYear = parseInt(rocYear) + 1911;
-  let targetMonth = parseInt(month) + 2;
-  let targetYear = adYear;
-  if (targetMonth > 12) {
-    targetMonth -= 12;
-    targetYear += 1;
-  }
-  let lastDay = new Date(targetYear, targetMonth, 0).getDate();
-  let targetRoc = targetYear - 1911;
-  return `${targetRoc}年${String(targetMonth).padStart(2, '0')}月${String(lastDay).padStart(2, '0')}日`;
-}
-
-// 依據「申請日期」計算「申請日期的隔月底」
+// 依據「發票開立當月」計算「次月1日起算35日，遇例假日或國定假日順延至次一工作日」
 function getDepositDateFromApplyDate(applyDateStr, fallbackRocYear = 115, fallbackMonth = 8) {
-  if (!applyDateStr) return getInvoiceDepositDate(fallbackRocYear, fallbackMonth);
-
   let rocYear = null;
   let month = null;
 
-  const m1 = applyDateStr.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
-  if (m1) {
-    rocYear = parseInt(m1[1]) - 1911;
-    month = parseInt(m1[2]);
-  } else {
-    const m2 = applyDateStr.match(/(\d{2,3})[年/-](\d{1,2})[月/-](\d{1,2})/);
-    if (m2) {
-      rocYear = parseInt(m2[1]);
-      month = parseInt(m2[2]);
+  if (applyDateStr) {
+    const m1 = applyDateStr.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (m1) {
+      rocYear = parseInt(m1[1]) - 1911;
+      month = parseInt(m1[2]);
+    } else {
+      const m2 = applyDateStr.match(/(\d{2,3})[年/-](\d{1,2})[月/-](\d{1,2})/);
+      if (m2) {
+        rocYear = parseInt(m2[1]);
+        month = parseInt(m2[2]);
+      }
     }
   }
 
   if (!rocYear || !month) {
     rocYear = parseInt(fallbackRocYear);
-    month = parseInt(fallbackMonth) + 1;
+    month = parseInt(fallbackMonth);
   }
 
-  // 隔月 = month + 1
   let adYear = rocYear + 1911;
-  let targetMonth = month + 1;
-  let targetYear = adYear;
-  if (targetMonth > 12) {
-    targetMonth -= 12;
-    targetYear += 1;
+  let nextMonth = month + 1;
+  let nextYear = adYear;
+  if (nextMonth > 12) {
+    nextMonth -= 12;
+    nextYear += 1;
   }
-  let lastDay = new Date(targetYear, targetMonth, 0).getDate();
-  let targetRoc = targetYear - 1911;
-  return `${targetRoc}年${String(targetMonth).padStart(2, '0')}月${String(lastDay).padStart(2, '0')}日`;
+
+  // 次月 1 日
+  let baseDate = new Date(nextYear, nextMonth - 1, 1);
+  // 次月 1 日起算 35 日 (即 baseDate + 35 天)
+  let rawTarget = new Date(baseDate);
+  rawTarget.setDate(baseDate.getDate() + 35);
+
+  // 遇例假日或國定假日順延至次一工作日
+  let finalDate = getNextWorkingDayJS(rawTarget);
+  let targetRoc = finalDate.getFullYear() - 1911;
+  let targetMonth = finalDate.getMonth() + 1;
+  let targetDay = finalDate.getDate();
+
+  return `${targetRoc}年${String(targetMonth).padStart(2, '0')}月${String(targetDay).padStart(2, '0')}日`;
+}
+
+function getInvoiceDepositDate(rocYear, month) {
+  return getDepositDateFromApplyDate(null, rocYear, month);
 }
 
 // 產生《附件1_發票收據申請單》標準 A4 仿真 HTML
@@ -1982,7 +2741,7 @@ function buildInvoiceDocHtml(inv) {
     : String(inv.amount).startsWith('NT$') ? inv.amount : `NT$${inv.amount}`;
   const depStr = inv.expected_deposit_date 
     ? (inv.expected_deposit_date.startsWith('(') ? inv.expected_deposit_date : `(預計) ${inv.expected_deposit_date}`) 
-    : '(預計) 下個月底';
+    : '(預計) 次月起算35天遇假日順延';
 
   return `
   <div class="a4-paper-sheet" id="printSheetInvoice">

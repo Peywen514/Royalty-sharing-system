@@ -248,6 +248,26 @@ body {
   background-color: #047857;
 }
 
+.btn-success-light {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1.5px solid #86efac;
+}
+
+.btn-success-light:hover {
+  background-color: #bbf7d0;
+}
+
+.btn-success-soft {
+  background-color: #ecfdf5;
+  color: #047857;
+  border: 1.5px solid #86efac;
+}
+
+.btn-success-soft:hover {
+  background-color: #d1fae5;
+}
+
 .btn-secondary {
   background-color: #e2e8f0;
   color: #334155;
@@ -388,6 +408,24 @@ body {
 
 #tab-history .custom-table tbody tr:hover td {
   background-color: #f8fafc;
+}
+
+/* 歷史紀錄三表格獨立滾軸與最小寬度配置，確保與講師版稅分潤記錄呈現一致且舒適的水平滾動效果 */
+#historyInvoiceTable {
+  min-width: 1250px;
+}
+
+#historySettlementTable {
+  min-width: 1450px;
+}
+
+#historyTable {
+  min-width: 1180px;
+}
+
+#tab-history .custom-table th,
+#tab-history .custom-table td {
+  white-space: nowrap;
 }
 
 .custom-table {
@@ -860,5 +898,93 @@ body {
   flex: 1;
   line-height: 1.45;
   word-break: break-all;
+}
+
+/* ==================================================== */
+/* 入帳提醒專屬樣式 (Reminder Styles)                 */
+/* ==================================================== */
+.badge-reminder {
+  background: #ef4444;
+  color: white;
+  border-radius: 9999px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-left: 0.35rem;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.reminder-status-pill {
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.pill-tomorrow {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.pill-today {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.pill-upcoming {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.pill-later {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.pill-overdue {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.pill-deposited {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1.5px solid #86efac;
+}
+
+.pill-pending-disburse {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1.5px solid #bfdbfe;
+}
+
+.teacher-summary-pill {
+  background: white;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.teacher-summary-pill.highlight {
+  border-color: #3b82f6;
+  background: #f8faff;
 }
 

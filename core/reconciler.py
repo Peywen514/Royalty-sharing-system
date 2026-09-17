@@ -315,6 +315,14 @@ class Reconciler:
                     "platform_val": f"NT$ {ppa_calc['invoice_amount_integer']:,}",
                     "diff": "0",
                     "matched": True
+                },
+                {
+                    "label": "平台版稅預計入帳日 (自動推算)",
+                    "user_val": user_data.get("meta", {}).get("expected_deposit_date") or "次月起算35天",
+                    "platform_val": user_data.get("meta", {}).get("expected_deposit_date") or "次月起算35天",
+                    "diff": "次月起算35天遇假日順延",
+                    "matched": True,
+                    "is_deposit_card": True
                 }
             ]
 
@@ -376,6 +384,14 @@ class Reconciler:
                 "platform_val": f"NT$ {round(p_sum['total_supplier_taxable']):,.0f}",
                 "diff": f"NT$ {round(u_sum['total_gross']) - round(p_sum['total_supplier_taxable']):,.0f}",
                 "matched": gross_match
+            },
+            {
+                "label": "平台版稅預計入帳日 (自動推算)",
+                "user_val": user_data.get("meta", {}).get("expected_deposit_date") or "次月起算35天",
+                "platform_val": user_data.get("meta", {}).get("expected_deposit_date") or "次月起算35天",
+                "diff": "次月起算35天遇假日順延",
+                "matched": True,
+                "is_deposit_card": True
             }
         ]
         

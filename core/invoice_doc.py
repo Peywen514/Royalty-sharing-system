@@ -4,9 +4,14 @@
 將抬頭、統編、金額、申請日期、預計於下個月底入帳日等自動填入《附件1_發票收據申請單》，並依月份另存檔案。
 """
 import os
+import sys
 import calendar
 import datetime
 import docx
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 class InvoiceDocGenerator:
     def __init__(self, template_path=None):
@@ -55,43 +60,24 @@ class InvoiceDocGenerator:
     @staticmethod
     def calc_deposit_date_from_apply_date(apply_date_str_or_tuple, fallback_roc_year=115, fallback_month=8):
         """
-        以「申請日期」為基準，計算「申請日期隔月底」作為預計入帳日
-        例如：申請日期 115年09月03日 (9月) -> 隔月底為 115年10月31日
+        以「請款發票開立當月」為基準，依平台合約規範計算「次月1日起算35日，遇例假日或國定假日順延至次一工作日」作為預計入帳日。
+        合約範例：11月填好發票 (11月開立) -> 付款日為次月 12/1 起算 35 日，遇假日順延 -> 實際入帳日為次年度 1月5日 (1/5)
         """
-        if isinstance(apply_date_str_or_tuple, tuple):
-            roc_year, month = apply_date_str_or_tuple[0], apply_date_str_or_tuple[1]
-        else:
-            _, roc_year, month, _ = InvoiceDocGenerator.parse_roc_date(apply_date_str_or_tuple)
-        
-        if not roc_year or not month:
-            roc_year, month = fallback_roc_year, fallback_month
-            
-        ad_year = roc_year + 1911
-        target_month = month + 1
-        target_year = ad_year
-        if target_month > 12:
-            target_month -= 12
-            target_year += 1
-            
-        last_day = calendar.monthrange(target_year, target_month)[1]
-        target_roc = target_year - 1911
-        return f"{target_roc}年{target_month:02d}月{last_day:02d}日"
+        from core.taiwan_holidays import calc_platform_deposit_date
+        formatted_roc, _ = calc_platform_deposit_date(apply_date_str_or_tuple, fallback_roc_year, fallback_month)
+        return formatted_roc
 
     @staticmethod
     def calc_next_month_end(roc_year, month):
         """
-        計算預計入帳日期（次次月底入帳，供未提供申請日期時回退使用）
+        計算預計入帳日期（次月起算35天遇假日順延，供未提供申請日期時回退使用）
         """
-        ad_year = roc_year + 1911
-        target_month = month + 2
-        target_year = ad_year
-        if target_month > 12:
-            target_month -= 12
-            target_year += 1
-            
-        last_day = calendar.monthrange(target_year, target_month)[1]
-        target_roc = target_year - 1911
-        return f"{target_roc}年{target_month:02d}月{last_day:02d}日"
+        apply_month = month + 1
+        apply_roc = roc_year
+        if apply_month > 12:
+            apply_month -= 12
+            apply_roc += 1
+        return InvoiceDocGenerator.calc_deposit_date_from_apply_date((apply_roc, apply_month, 3))
 
     @staticmethod
     def calc_apply_date(roc_year, month, day=3):

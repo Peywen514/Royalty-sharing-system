@@ -65,9 +65,8 @@ def sync_to_google_sheets(period, platform_id, platform_name, items, summary, in
             conn.close()
         except Exception:
             pass
-
     if not expected_deposit:
-        # 2. 若資料庫無紀錄，依期別自動推算隔月底入帳日 (例如 115年8月 -> 隔月申請 9月 -> 隔月底 115年10月31日)
+        # 2. 若資料庫無紀錄，依期別自動推算預計入帳日 (例如 115年8月 -> 隔月申請 9月 -> 次月1日起算35天遇假日順延 115年11月05日)
         try:
             import re
             from core.invoice_doc import InvoiceDocGenerator

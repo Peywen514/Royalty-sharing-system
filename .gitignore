@@ -17,5 +17,6 @@ uploads/
 ~$*.xlsx
 ~$*.docx
 
-# Runtime logs
+# Runtime logs & state
 *.log
+notification_history.json

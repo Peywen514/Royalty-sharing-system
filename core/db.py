@@ -92,9 +92,25 @@ def init_db():
         amount INTEGER NOT NULL,
         expected_deposit_date TEXT NOT NULL,
         file_path TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        is_deposited INTEGER DEFAULT 0,
+        deposited_date TEXT,
+        deposited_at TEXT,
+        deposited_note TEXT
     )
     ''')
+
+    # 確保既有 invoice_requests 表包含入帳確認勾核欄位 (平滑升級)
+    c.execute("PRAGMA table_info(invoice_requests)")
+    inv_cols = [row[1] for row in c.fetchall()]
+    if 'is_deposited' not in inv_cols:
+        c.execute("ALTER TABLE invoice_requests ADD COLUMN is_deposited INTEGER DEFAULT 0")
+    if 'deposited_date' not in inv_cols:
+        c.execute("ALTER TABLE invoice_requests ADD COLUMN deposited_date TEXT")
+    if 'deposited_at' not in inv_cols:
+        c.execute("ALTER TABLE invoice_requests ADD COLUMN deposited_at TEXT")
+    if 'deposited_note' not in inv_cols:
+        c.execute("ALTER TABLE invoice_requests ADD COLUMN deposited_note TEXT")
 
     # 6. 講師分潤結算紀錄
     c.execute('''
@@ -112,9 +128,28 @@ def init_db():
         share_rate REAL DEFAULT 0.50,
         payable_amount REAL DEFAULT 0,
         excel_path TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        is_disbursed INTEGER DEFAULT 0,
+        disbursed_date TEXT,
+        disbursed_batch TEXT,
+        disbursed_at TEXT,
+        disbursed_note TEXT
     )
     ''')
+
+    # 確保既有 teacher_settlements 表包含撥款確認欄位 (平滑升級)
+    c.execute("PRAGMA table_info(teacher_settlements)")
+    set_cols = [row[1] for row in c.fetchall()]
+    if 'is_disbursed' not in set_cols:
+        c.execute("ALTER TABLE teacher_settlements ADD COLUMN is_disbursed INTEGER DEFAULT 0")
+    if 'disbursed_date' not in set_cols:
+        c.execute("ALTER TABLE teacher_settlements ADD COLUMN disbursed_date TEXT")
+    if 'disbursed_batch' not in set_cols:
+        c.execute("ALTER TABLE teacher_settlements ADD COLUMN disbursed_batch TEXT")
+    if 'disbursed_at' not in set_cols:
+        c.execute("ALTER TABLE teacher_settlements ADD COLUMN disbursed_at TEXT")
+    if 'disbursed_note' not in set_cols:
+        c.execute("ALTER TABLE teacher_settlements ADD COLUMN disbursed_note TEXT")
 
     # 預設預載資料 (若未初始化)
     c.execute('SELECT COUNT(*) FROM platforms')
@@ -304,6 +339,88 @@ def delete_history_record(record_type, record_id):
     finally:
         conn.close()
     return deleted
+
+# 更新發票請款單入帳狀態 (勾核已入帳 / 取消勾核)
+def update_invoice_deposit_status(invoice_id, is_deposited=1, deposited_date=None, deposited_note=None):
+    conn = get_connection()
+    c = conn.cursor()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if is_deposited:
+        if not deposited_date:
+            today = datetime.today()
+            deposited_date = f"{today.year - 1911}年{today.month:02d}月{today.day:02d}日"
+        c.execute('''
+            UPDATE invoice_requests
+            SET is_deposited = 1, deposited_date = ?, deposited_at = ?, deposited_note = ?
+            WHERE id = ?
+        ''', (deposited_date, now_str, deposited_note or '', invoice_id))
+    else:
+        c.execute('''
+            UPDATE invoice_requests
+            SET is_deposited = 0, deposited_date = NULL, deposited_at = NULL, deposited_note = NULL
+            WHERE id = ?
+        ''', (invoice_id,))
+    conn.commit()
+    c.execute('SELECT * FROM invoice_requests WHERE id = ?', (invoice_id,))
+    row = c.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+# 更新講師分潤單筆撥款狀態 (勾核已撥款 / 取消勾核)
+def update_teacher_settlement_disbursed(settlement_id, is_disbursed=1, disbursed_date=None, disbursed_batch=None, disbursed_note=None):
+    conn = get_connection()
+    c = conn.cursor()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if is_disbursed:
+        if not disbursed_date:
+            today = datetime.today()
+            disbursed_date = f"{today.year - 1911}年{today.month:02d}月{today.day:02d}日"
+        c.execute('''
+            UPDATE teacher_settlements
+            SET is_disbursed = 1, disbursed_date = ?, disbursed_batch = ?, disbursed_at = ?, disbursed_note = ?
+            WHERE id = ?
+        ''', (disbursed_date, disbursed_batch or '', now_str, disbursed_note or '', settlement_id))
+    else:
+        c.execute('''
+            UPDATE teacher_settlements
+            SET is_disbursed = 0, disbursed_date = NULL, disbursed_batch = NULL, disbursed_at = NULL, disbursed_note = NULL
+            WHERE id = ?
+        ''', (settlement_id,))
+    conn.commit()
+    c.execute('SELECT * FROM teacher_settlements WHERE id = ?', (settlement_id,))
+    row = c.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+# 批次更新講師分潤撥款狀態 (依 5月/11月 批次整批勾核)
+def batch_update_teacher_settlements_disbursed(settlement_ids, is_disbursed=1, disbursed_date=None, disbursed_batch=None, disbursed_note=None):
+    if not settlement_ids:
+        return 0
+    conn = get_connection()
+    c = conn.cursor()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if is_disbursed:
+        if not disbursed_date:
+            today = datetime.today()
+            disbursed_date = f"{today.year - 1911}年{today.month:02d}月{today.day:02d}日"
+        q_placeholders = ','.join(['?'] * len(settlement_ids))
+        params = [disbursed_date, disbursed_batch or '', now_str, disbursed_note or ''] + list(settlement_ids)
+        c.execute(f'''
+            UPDATE teacher_settlements
+            SET is_disbursed = 1, disbursed_date = ?, disbursed_batch = ?, disbursed_at = ?, disbursed_note = ?
+            WHERE id IN ({q_placeholders})
+        ''', params)
+    else:
+        q_placeholders = ','.join(['?'] * len(settlement_ids))
+        c.execute(f'''
+            UPDATE teacher_settlements
+            SET is_disbursed = 0, disbursed_date = NULL, disbursed_batch = NULL, disbursed_at = NULL, disbursed_note = NULL
+            WHERE id IN ({q_placeholders})
+        ''', list(settlement_ids))
+    conn.commit()
+    count = c.rowcount
+    conn.close()
+    return count
 
 if __name__ == '__main__':
     init_db()

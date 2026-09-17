@@ -100,7 +100,7 @@ def run_monthly_settlement(roc_year=115, month=8, platform_id="104", user_file=N
     print(f"   統編: {plat_info['tax_id']}")
     print(f"   金額: NT$ {final_amount:,}")
     print(f"   申請日期: {actual_apply}")
-    print(f"   預計入帳(隔月底): (預計) {actual_deposit}")
+    print(f"   預計入帳(次月起算35天遇假日順延): (預計) {actual_deposit}")
     print(f"   路徑: {doc_path}")
 
     # 5. 結算講師分潤 (Excel)
