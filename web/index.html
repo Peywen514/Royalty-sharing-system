@@ -559,7 +559,7 @@
           <input type="text" class="form-control" id="modalCourseTeacher" placeholder="例：侯玉彤">
         </div>
       </div>
-      <div class="grid-3">
+      <div class="grid-4">
         <div class="form-group">
           <label class="form-label">課程定價</label>
           <input type="number" class="form-control" id="modalCoursePrice" value="1288">
@@ -569,8 +569,16 @@
           <input type="number" step="0.05" class="form-control" id="modalCourseShareRate" value="0.5" placeholder="0.5 代表 50%">
         </div>
         <div class="form-group">
-          <label class="form-label">製作費用攤提</label>
+          <label class="form-label">製作費用總額</label>
           <input type="number" class="form-control" id="modalCourseCost" value="0" placeholder="例：1069">
+        </div>
+        <div class="form-group">
+          <label class="form-label">攤提模式</label>
+          <select class="form-control" id="modalCourseDedType">
+            <option value="cumulative" selected>累計扣抵 (扣完即止，預設)</option>
+            <option value="per_period">每期固定扣除</option>
+            <option value="none">免扣製作費 (0元)</option>
+          </select>
         </div>
       </div>
       <div class="form-group">
@@ -789,6 +797,45 @@
         <button class="btn btn-primary btn-sm" onclick="submitTeacherBatchDisburseConfirm()" style="background: #059669; border-color: #059669; font-weight: 700; box-shadow: 0 2px 6px rgba(5,150,105,0.3);">
           ⚡ 確認全數勾核已撥款存檔
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: 講師分潤結算與製作費用選填確認 -->
+  <div class="modal-overlay" id="settlementCostModal">
+    <div class="modal-box" style="max-width: 860px; width: 95%;">
+      <div class="modal-header">
+        <h3 class="modal-title" style="display: flex; align-items: center; gap: 0.5rem;">
+          🧑‍🏫 結算講師分潤明細 (課程製作費選填與核對)
+        </h3>
+        <button class="modal-close" onclick="closeSettlementCostModal()">&times;</button>
+      </div>
+      <div style="margin-bottom: 1rem; color: #1e293b; font-size: 0.9rem; line-height: 1.55; background: #f0fdf4; border: 1.5px solid #86efac; padding: 0.85rem 1.1rem; border-radius: 8px;">
+        💡 <strong>系統智慧攤提說明</strong>：系統已自動比對歷史各期紀錄。若該課程前期已扣除製作費用，系統將<strong>自動帶入 0 元（前期已攤提完畢）</strong>；您亦可依實際合約需求，直接在下方輸入框<strong>自由選填 / 自訂調整</strong>本期扣除金額。
+      </div>
+      <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+        <table class="custom-table" id="settlementCostTable">
+          <thead>
+            <tr>
+              <th style="width: 13%;">授課講師</th>
+              <th style="width: 32%;">課程名稱</th>
+              <th style="width: 8%;" class="text-center">數量</th>
+              <th style="width: 14%;" class="text-right">平台淨額</th>
+              <th style="width: 21%;" class="text-right">本期扣製作費 (選填)</th>
+              <th style="width: 12%;" class="text-right">預估應付</th>
+            </tr>
+          </thead>
+          <tbody id="settlementCostTableBody">
+            <!-- 動態填入各課程選填列 -->
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-footer" style="margin-top: 1.2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem;">
+        <div id="settlementCostTotalNote" style="font-size: 0.88rem; color: #475569; font-weight: 600;"></div>
+        <div style="display: flex; gap: 0.6rem;">
+          <button class="btn btn-secondary" onclick="closeSettlementCostModal()">取消</button>
+          <button class="btn btn-primary" onclick="confirmSettleWithCustomCosts()" style="box-shadow: 0 2px 6px rgba(37,99,235,0.3);">💾 確認結算並產出 Excel</button>
+        </div>
       </div>
     </div>
   </div>

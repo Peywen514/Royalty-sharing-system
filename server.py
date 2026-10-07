@@ -295,6 +295,7 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
             
             conn = get_connection()
             c = conn.cursor()
+            c.execute("DELETE FROM reconciliation_records WHERE period = ? AND platform_id = ?", (period, platform_id))
             c.execute('''
             INSERT INTO reconciliation_records (
                 period, platform_id, total_qty, sales_gross, sales_net, split_rate,
@@ -357,6 +358,7 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                 conn = get_connection()
                 c = conn.cursor()
                 period_str = f"{roc_year}年{month}月"
+                c.execute("DELETE FROM invoice_requests WHERE period = ? AND platform_id = ? AND is_deposited = 0", (period_str, platform_id))
                 c.execute('''
                 INSERT INTO invoice_requests (period, platform_id, apply_date, title, tax_id, amount, expected_deposit_date, file_path, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -383,20 +385,55 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                 self._send_json({"error": err_msg}, status=500)
             return
 
+        elif path == "/api/settle_teacher_preview":
+            period_str = req_data.get("period", "115年8月")
+            items = req_data.get("items", [])
+            try:
+                configs = get_all_configs()
+                settler = TeacherSettlement()
+                preview = settler.get_settlement_preview(
+                    items,
+                    course_configs=configs["courses"],
+                    period_str=period_str
+                )
+                self._send_json({"success": True, "preview": preview})
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=500)
+            return
+
         elif path == "/api/settle_teacher":
             period_str = req_data.get("period", "115年8月")
             items = req_data.get("items", [])
             platform_name = req_data.get("platform_name", "104平台")
             platform_id = req_data.get("platform_id", "104")
+            custom_costs = req_data.get("custom_costs")
             
             try:
                 configs = get_all_configs()
                 settler = TeacherSettlement()
-                results = settler.calculate_royalty(items, course_configs=configs["courses"])
+                results = settler.calculate_royalty(
+                    items,
+                    course_configs=configs["courses"],
+                    period_str=period_str,
+                    custom_costs=custom_costs
+                )
                 
                 generated_files = []
                 conn = get_connection()
                 c = conn.cursor()
+
+                # 先清除該期該平台尚未撥款之舊結算紀錄，避免髒資料殘留
+                c.execute("DELETE FROM teacher_settlements WHERE period = ? AND platform_id = ? AND is_disbursed = 0", (period_str, platform_id))
+
+                # 若本次無未指定講師，主動清理過往殘留之「未指定講師」檔案
+                target_dir = os.path.join(BASE_DIR, period_str)
+                if "未指定講師" not in results and os.path.exists(target_dir):
+                    stale_unknown = os.path.join(target_dir, f"{platform_name}版稅明細-{period_str}(未指定講師老師).xlsx")
+                    if os.path.exists(stale_unknown):
+                        try:
+                            os.remove(stale_unknown)
+                        except Exception:
+                            pass
 
                 for t_name, t_items in results.items():
                     excel_path = settler.generate_excel(
@@ -488,16 +525,27 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                 # 4. 結算講師分潤並匯出 Excel
                 items = audit_res["user_data"]["items"]
                 settler = TeacherSettlement()
-                t_results = settler.calculate_royalty(items, course_configs=configs["courses"])
+                t_results = settler.calculate_royalty(items, course_configs=configs["courses"], period_str=period_str)
                 teacher_files = []
+                p_name = "104平台" if platform_id == "104" else (plat_info.get("name") or "平台")
                 for t_name, t_items in t_results.items():
-                    p_name = "104平台" if platform_id == "104" else (plat_info.get("name") or "平台")
                     t_path = settler.generate_excel(t_name, period_str, t_items, p_name)
                     teacher_files.append({"teacher": t_name, "path": t_path})
+
+                # 若本次無未指定講師，主動清理過往殘留之「未指定講師」檔案
+                target_dir = os.path.join(BASE_DIR, period_str)
+                if "未指定講師" not in t_results and os.path.exists(target_dir):
+                    stale_unknown = os.path.join(target_dir, f"{p_name}版稅明細-{period_str}(未指定講師老師).xlsx")
+                    if os.path.exists(stale_unknown):
+                        try:
+                            os.remove(stale_unknown)
+                        except Exception:
+                            pass
 
                 # 5. 寫入 DB
                 conn = get_connection()
                 c = conn.cursor()
+                c.execute("DELETE FROM reconciliation_records WHERE period = ? AND platform_id = ?", (period_str, platform_id))
                 u_sum = audit_res["user_data"]["summary"]
                 p_sum = audit_res["platform_data"]["summary"]
                 c.execute('''
@@ -512,6 +560,7 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                     audit_res["status_text"], json.dumps(audit_res, ensure_ascii=False),
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 ))
+                c.execute("DELETE FROM invoice_requests WHERE period = ? AND platform_id = ? AND is_deposited = 0", (period_str, platform_id))
                 c.execute('''
                 INSERT INTO invoice_requests (period, platform_id, apply_date, title, tax_id, amount, expected_deposit_date, file_path, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -521,6 +570,23 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                     expected_deposit, inv_path,
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 ))
+
+                # 寫入講師分潤結算記錄 (先清除同月份該平台未撥款舊資料)
+                c.execute("DELETE FROM teacher_settlements WHERE period = ? AND platform_id = ? AND is_disbursed = 0", (period_str, platform_id))
+                for t_name, t_items in t_results.items():
+                    excel_path = next((f["path"] for f in teacher_files if f["teacher"] == t_name), "")
+                    for it in t_items:
+                        c.execute('''
+                        INSERT INTO teacher_settlements (
+                            period, teacher_name, platform_id, course_name, price, qty, platform_net,
+                            production_cost, net_profit, share_rate, payable_amount, excel_path, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (
+                            period_str, t_name, platform_id, it["course_name"],
+                            it["price"], it["qty"], it["platform_net"], it["production_cost"],
+                            it["net_profit"], it["share_rate"], it["payable"], excel_path,
+                            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        ))
                 conn.commit()
                 conn.close()
 
@@ -674,11 +740,57 @@ class RoyaltyHandler(SimpleHTTPRequestHandler):
                 teacher_settlements = req_data.get("teacher_settlements")
                 ppa_details = req_data.get("ppa_details")
                 
-                # 自動計算講師分潤供講師總表同步
+                # 1. 優先從資料庫讀取已結算的講師分潤（確保與系統介面及產出的 Excel 檔案 100% 完全一致）
+                if not teacher_settlements:
+                    try:
+                        conn = get_connection()
+                        c = conn.cursor()
+                        c.execute(
+                            "SELECT * FROM teacher_settlements WHERE period = ? AND platform_id = ? ORDER BY id ASC",
+                            (period, platform_id)
+                        )
+                        db_rows = [dict(r) for r in c.fetchall()]
+                        if not db_rows:
+                            # 彈性容錯：若平台代碼命名略有差異，查該期所有紀錄
+                            c.execute("SELECT * FROM teacher_settlements WHERE period = ? ORDER BY id ASC", (period,))
+                            db_rows = [dict(r) for r in c.fetchall()]
+                        conn.close()
+
+                        if db_rows:
+                            teacher_settlements = {}
+                            for r in db_rows:
+                                t_name = r["teacher_name"]
+                                if t_name not in teacher_settlements:
+                                    teacher_settlements[t_name] = []
+                                prod_cost = float(r.get("production_cost") or 0.0)
+                                share_rate_val = float(r.get("share_rate") or 0.5)
+                                share_rate_str = f"{int(share_rate_val * 100)}%" if share_rate_val == round(share_rate_val, 2) else f"{round(share_rate_val * 100, 1)}%"
+                                note = r.get("disbursed_note") or ("扣除平台服務費" if prod_cost == 0.0 else "扣除平台服務費、課程製作相關費用")
+                                teacher_settlements[t_name].append({
+                                    "course_name": r.get("course_name", ""),
+                                    "price": r.get("price", 0),
+                                    "qty": r.get("qty", 0),
+                                    "platform_net": r.get("platform_net", 0),
+                                    "production_cost": prod_cost,
+                                    "net_profit": r.get("net_profit", 0),
+                                    "share_rate_str": share_rate_str,
+                                    "share_rate": share_rate_val,
+                                    "payable": r.get("payable_amount", 0),
+                                    "payable_amount": r.get("payable_amount", 0),
+                                    "note": note
+                                })
+                    except Exception as db_e:
+                        print(f"Error querying teacher_settlements from db for sync: {db_e}")
+
+                # 2. 若資料庫尚未有結算記錄，則使用帶有當期期別 (period_str) 的結算引擎自動計算 (含前期扣除累計攤提)
                 if not teacher_settlements and items:
                     configs = get_all_configs()
                     settler = TeacherSettlement()
-                    teacher_settlements = settler.calculate_royalty(items, course_configs=configs["courses"])
+                    teacher_settlements = settler.calculate_royalty(
+                        items,
+                        course_configs=configs["courses"],
+                        period_str=period
+                    )
 
                 res = sync_to_google_sheets(
                     period=period,

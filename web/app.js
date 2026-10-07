@@ -582,15 +582,148 @@ async function generateInvoiceDoc() {
 }
 
 // 結算並產出講師分潤 Excel
+let currentSettlementPreviewData = [];
+
+// 點擊「🧑‍🏫 3. 結算並產出講師分潤 Excel」時開啟選填與核對視窗
 async function settleTeacherRoyalty() {
   if (!currentAuditResult) {
     alert("請先完成對帳核對！");
     return;
   }
+  const items = currentAuditResult.user_data.items;
+
+  try {
+    const res = await fetch("/api/settle_teacher_preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        period: currentPeriodStr,
+        items: items
+      })
+    });
+    const data = await res.json();
+    if (data.success && data.preview && data.preview.length > 0) {
+      currentSettlementPreviewData = data.preview;
+      renderSettlementCostModal(data.preview);
+      document.getElementById("settlementCostModal").classList.add("active");
+      return;
+    }
+  } catch (err) {
+    console.warn("無法取得選填預覽視窗，自動切換至直接結算:", err);
+  }
+
+  // 若無法載入選填視窗，自動直接執行結算
+  await confirmSettleWithCustomCosts();
+}
+
+function closeSettlementCostModal() {
+  const m = document.getElementById("settlementCostModal");
+  if (m) m.classList.remove("active");
+}
+
+function renderSettlementCostModal(previewList) {
+  const tbody = document.getElementById("settlementCostTableBody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  
+  previewList.forEach((it, idx) => {
+    const tr = document.createElement("tr");
+    
+    let badgeStyle = "background: #e2e8f0; color: #334155;";
+    let icon = "ℹ️";
+    if (it.cost_status === "already_deducted") {
+      badgeStyle = "background: #dcfce7; color: #166534; border: 1px solid #86efac;";
+      icon = "🟢";
+    } else if (it.cost_status === "first_time") {
+      badgeStyle = "background: #eff6ff; color: #1e40af; border: 1px solid #93c5fd;";
+      icon = "🔵";
+    } else if (it.cost_status === "partial_deducted") {
+      badgeStyle = "background: #fef3c7; color: #92400e; border: 1px solid #fde68a;";
+      icon = "🟠";
+    }
+
+    const netVal = Number(it.platform_net || 0);
+    const recCost = Number(it.recommended_cost || 0);
+    const shareRate = Number(it.share_rate || 0.5);
+
+    tr.innerHTML = `
+      <td style="font-weight: 700; color: #1e3a8a;">${it.teacher_name}</td>
+      <td style="font-size: 0.92rem; line-height: 1.35;">${it.course_name}</td>
+      <td class="text-center" style="font-weight: 600;">${it.qty}</td>
+      <td class="text-right" style="font-weight: 600;">NT$ ${netVal.toLocaleString()}</td>
+      <td class="text-right">
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+          <input type="number" 
+                 step="1" 
+                 class="form-control settle-cost-input" 
+                 id="settleCostInput_${idx}" 
+                 data-idx="${idx}"
+                 data-course="${encodeURIComponent(it.course_name)}"
+                 data-net="${netVal}"
+                 data-rate="${shareRate}"
+                 value="${recCost}" 
+                 style="width: 120px; text-align: right; font-weight: 700; color: #0f172a; padding: 4px 8px;"
+                 oninput="recalcModalPayable()">
+          <span style="font-size: 0.72rem; padding: 1px 6px; border-radius: 4px; ${badgeStyle}">
+            ${icon} ${it.cost_status_text || ""}
+          </span>
+        </div>
+      </td>
+      <td class="text-right" id="settleEstPayable_${idx}" style="font-weight: 800;">
+        NT$ 0
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  recalcModalPayable();
+}
+
+function recalcModalPayable() {
+  const inputs = document.querySelectorAll(".settle-cost-input");
+  let totalCost = 0;
+  let totalPayable = 0;
+
+  inputs.forEach(inp => {
+    const idx = inp.getAttribute("data-idx");
+    const net = Number(inp.getAttribute("data-net") || 0);
+    const rate = Number(inp.getAttribute("data-rate") || 0.5);
+    const cost = Math.max(0, Number(inp.value || 0));
+    
+    const profit = net - cost;
+    const payable = Math.round(profit * rate * 10) / 10;
+    
+    totalCost += cost;
+    totalPayable += payable;
+
+    const cell = document.getElementById(`settleEstPayable_${idx}`);
+    if (cell) {
+      cell.textContent = `NT$ ${payable.toLocaleString()}`;
+      cell.style.color = payable >= 0 ? '#166534' : '#dc2626';
+    }
+  });
+
+  const totalNote = document.getElementById("settlementCostTotalNote");
+  if (totalNote) {
+    totalNote.innerHTML = `本期扣除製作費合計：<span style="color:#0f172a; font-weight:700;">NT$ ${totalCost.toLocaleString()}</span> ｜ 預估應付版稅總額：<span style="color:#1e40af; font-weight:800;">NT$ ${totalPayable.toLocaleString()}</span>`;
+  }
+}
+
+// 確認自訂/選填費用並發動結算
+async function confirmSettleWithCustomCosts() {
+  if (!currentAuditResult) return;
   const platformId = document.getElementById("selPlatform").value;
   const items = currentAuditResult.user_data.items;
   const plat = globalConfigs.platforms.find(p => p.id === platformId);
   const platName = plat ? (plat.name.includes("一零四") ? "104平台" : plat.name) : "104平台";
+
+  const customCosts = {};
+  const inputs = document.querySelectorAll(".settle-cost-input");
+  inputs.forEach(inp => {
+    const courseName = decodeURIComponent(inp.getAttribute("data-course"));
+    const costVal = parseFloat(inp.value || 0);
+    customCosts[courseName] = isNaN(costVal) ? 0 : Math.max(0, costVal);
+  });
 
   try {
     const res = await fetch("/api/settle_teacher", {
@@ -600,11 +733,13 @@ async function settleTeacherRoyalty() {
         period: currentPeriodStr,
         items: items,
         platform_name: platName,
-        platform_id: platformId
+        platform_id: platformId,
+        custom_costs: customCosts
       })
     });
     const data = await res.json();
     if (data.success) {
+      closeSettlementCostModal();
       data.teachers.forEach(t => {
         addOutputFile({
           name: t.filename,
@@ -996,6 +1131,8 @@ function openAddCourseModal() {
   document.getElementById("modalCoursePrice").value = "1288";
   document.getElementById("modalCourseShareRate").value = "0.5";
   document.getElementById("modalCourseCost").value = "0";
+  const dedSel = document.getElementById("modalCourseDedType");
+  if (dedSel) dedSel.value = "cumulative";
   document.getElementById("modalCourseNote").value = "扣除平台服務費";
 
   populatePlatformSelectInModal();
@@ -1012,6 +1149,8 @@ function openEditCourseModal(id) {
   document.getElementById("modalCoursePrice").value = c.price;
   document.getElementById("modalCourseShareRate").value = c.teacher_share_rate;
   document.getElementById("modalCourseCost").value = c.production_cost;
+  const dedSel = document.getElementById("modalCourseDedType");
+  if (dedSel) dedSel.value = c.deduction_type || "cumulative";
   document.getElementById("modalCourseNote").value = c.note || "";
 
   populatePlatformSelectInModal(c.platform_id);
@@ -1042,6 +1181,8 @@ async function saveCourseFromModal() {
   const price = parseFloat(document.getElementById("modalCoursePrice").value || 0);
   const teacher_share_rate = parseFloat(document.getElementById("modalCourseShareRate").value || 0.5);
   const production_cost = parseFloat(document.getElementById("modalCourseCost").value || 0);
+  const dedSel = document.getElementById("modalCourseDedType");
+  const deduction_type = dedSel ? dedSel.value : "cumulative";
   const note = document.getElementById("modalCourseNote").value.trim();
 
   if (!course_name || !teacher_name) {
@@ -1055,7 +1196,7 @@ async function saveCourseFromModal() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id, course_name, platform_id, teacher_name, price,
-        teacher_share_rate, production_cost, note
+        teacher_share_rate, production_cost, deduction_type, note
       })
     });
     const data = await res.json();
@@ -2578,14 +2719,16 @@ function confirmPrintCurrentDoc() {
         }
         .a4-paper-sheet {
           width: 100%;
-          min-height: auto;
+          min-height: 271.6mm;
+          max-height: 271.6mm;
+          overflow: hidden;
           page-break-after: always;
-          margin-bottom: 25px;
           position: relative;
+          box-sizing: border-box;
+          background: #ffffff;
         }
         .a4-paper-sheet:last-child {
           page-break-after: avoid;
-          margin-bottom: 0;
         }
         .invoice-tag-box {
           position: absolute;
@@ -2593,7 +2736,7 @@ function confirmPrintCurrentDoc() {
           top: 0;
           width: 2.16cm;
           height: 0.93cm;
-          border: 1px solid #000;
+          border: 1px solid #000000;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -2601,20 +2744,21 @@ function confirmPrintCurrentDoc() {
           font-weight: bold;
           font-family: "新細明體", "PMingLiU", serif;
           background-color: #ffffff;
+          letter-spacing: 2px;
         }
-        .invoice-doc-title { text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 2px; }
-        .invoice-doc-subtitle { text-align: center; font-size: 14pt; font-weight: bold; letter-spacing: 4px; margin-bottom: 12px; }
-        .invoice-section-title { font-weight: bold; font-size: 11pt; color: #000; margin-bottom: 3px; margin-top: 8px; }
-        .invoice-doc-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 11pt; }
-        .invoice-doc-table th, .invoice-doc-table td { border: 1px solid #000; padding: 4px 6px; vertical-align: middle; }
+        .invoice-doc-title { text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 2px; line-height: 1.3; }
+        .invoice-doc-subtitle { text-align: center; font-size: 14pt; font-weight: bold; letter-spacing: 4px; margin-bottom: 12px; line-height: 1.3; }
+        .invoice-section-title { font-weight: bold; font-size: 11pt; color: #000000; margin-bottom: 2px; margin-top: 6px; }
+        .invoice-doc-table { width: 100%; border-collapse: collapse; margin-bottom: 3px; font-size: 11pt; }
+        .invoice-doc-table th, .invoice-doc-table td { border: 1px solid #000000; padding: 4px 6px; vertical-align: middle; }
         .invoice-doc-table th { background-color: #ffffff !important; text-align: center; font-weight: bold; }
         .invoice-doc-table td.no-padding { padding: 2px 4px !important; }
         .borderless-grid-table, .borderless-grid-table td { border: none !important; }
-        .dashed-table, .dashed-table th, .dashed-table td { border: 1px dashed #000 !important; }
-        .invoice-checkbox { font-weight: bold; font-size: 11pt; margin-right: 2px; }
-        .invoice-item-desc { font-size: 10pt; color: #000; padding-left: 12pt; line-height: 1.5; margin-top: 3px; margin-bottom: 8px; }
-        .invoice-notes { font-size: 9.5pt; color: #000; line-height: 1.7; margin-top: 14px; }
-        .invoice-footer-ver { text-align: right; color: #808080; font-size: 12pt; margin-top: 12px; font-family: "新細明體", "PMingLiU", "Times New Roman", serif; }
+        .dashed-table, .dashed-table th, .dashed-table td { border: 1px dashed #000000 !important; }
+        .invoice-checkbox { font-weight: normal; font-size: 12pt; margin-right: 3px; display: inline-block; vertical-align: middle; line-height: 1; }
+        .invoice-item-desc { font-size: 9pt; color: #000000; padding-left: 12pt; line-height: 1.4; margin-top: 2px; margin-bottom: 6px; }
+        .invoice-notes { font-size: 9pt; color: #000000; line-height: 1.6; margin-top: 10px; }
+        .invoice-footer-ver { text-align: right; color: #000000; font-size: 12pt; margin-top: 10px; font-family: "新細明體", "PMingLiU", "Times New Roman", serif; }
         
         .settle-doc-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px; }
         .settle-doc-title { font-size: 14pt; font-weight: bold; }
@@ -2743,10 +2887,26 @@ function buildInvoiceDocHtml(inv) {
     ? (inv.expected_deposit_date.startsWith('(') ? inv.expected_deposit_date : `(預計) ${inv.expected_deposit_date}`) 
     : '(預計) 次月起算35天遇假日順延';
 
+  let applyDateFormatted = inv.apply_date || '115年10月06日';
+  let matchDate = applyDateFormatted.match(/(\d{2,3})[年/-](\d{1,2})[月/-](\d{1,2})/);
+  let y_spaced = '1 1 5', m_spaced = '1 0', d_spaced = '0 6';
+  if (matchDate) {
+    y_spaced = matchDate[1].split('').join('&nbsp;');
+    m_spaced = String(matchDate[2]).padStart(2, '0').split('').join('&nbsp;');
+    d_spaced = String(matchDate[3]).padStart(2, '0').split('').join('&nbsp;');
+  }
+
+  let cleanDep = depStr.replace(/\(預計\)/g, '').trim();
+  let mDep = cleanDep.match(/(\d{2,3})[年/-](\d{1,2})[月/-](\d{1,2})/);
+  let depDisplay = depStr;
+  if (mDep) {
+    depDisplay = `(預計) ${mDep[1]} 年 ${String(mDep[2]).padStart(2, '0')} 月 ${String(mDep[3]).padStart(2, '0')} 日`;
+  }
+
   return `
   <div class="a4-paper-sheet" id="printSheetInvoice">
-    <div style="position: relative; margin-bottom: 12px; min-height: 0.93cm;">
-      <div class="invoice-tag-box">附件1</div>
+    <div style="position: relative; margin-bottom: 8px; min-height: 0.93cm;">
+      <div class="invoice-tag-box">附件 1</div>
       <div class="invoice-doc-title">財團法人中華民國電腦技能基金會</div>
       <div class="invoice-doc-subtitle">發票收據申請單</div>
     </div>
@@ -2761,31 +2921,33 @@ function buildInvoiceDocHtml(inv) {
       </colgroup>
       <tr>
         <th>部門</th>
-        <td>${inv.dept || '綜合推廣中心'}</td>
+        <td style="font-size: 11pt;">${inv.dept || '綜合推廣中心'}</td>
         <th>申請日期</th>
-        <td style="text-align: center;">${inv.apply_date}</td>
+        <td style="text-align: center; font-size: 11pt; letter-spacing: 2px;">
+          ${y_spaced}&nbsp;&nbsp;年&nbsp;&nbsp;${m_spaced}&nbsp;&nbsp;月&nbsp;&nbsp;${d_spaced}&nbsp;&nbsp;日
+        </td>
       </tr>
       <tr>
-        <th>專案名稱 /<br>考場名稱</th>
+        <th style="line-height: 1.25;">專案名稱<br>/考場名稱</th>
         <td>${inv.project_name || '&nbsp;'}</td>
-        <th>專案編號 /<br>試務編號</th>
+        <th style="line-height: 1.25;">專案編號<br>/試務編號</th>
         <td>${inv.project_code || '&nbsp;'}</td>
       </tr>
       <tr>
-        <th style="font-size: 12pt;">檢附相關文件</th>
+        <th style="font-size: 11pt;">檢附相關文件</th>
         <td colspan="3" style="font-size: 11pt;">
           <span class="invoice-checkbox">☐</span>契約&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
           <span class="invoice-checkbox">☐</span>報價單&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-          <span class="invoice-checkbox">☒</span><strong>其他：分潤明細</strong>
+          <span class="invoice-checkbox">☒</span>其他：分潤明細
         </td>
       </tr>
     </table>
-    <div class="invoice-item-desc" style="font-size: 10pt; margin-bottom: 8px;">
-      說明：專案編號「ICT業管系統專案編號；其他近似管理編號」<br>
-      說明：試務編號「ICT業管系統申領表試務編號；CWT業管系統申領表梯次編號」
+    <div class="invoice-item-desc">
+      說明：專案編號「ICT 業管系統專案編號；其他近似管理編號」<br>
+      說明：試務編號「ICT 業管系統申領表試務編號；CWT 業管系統申領表梯次編號」
     </div>
 
-    <div class="invoice-section-title" style="margin-top: 10px;">2.開立資料及種類</div>
+    <div class="invoice-section-title">2.開立資料及種類</div>
     <table class="invoice-doc-table">
       <colgroup>
         <col style="width: 11.6%;">
@@ -2801,12 +2963,16 @@ function buildInvoiceDocHtml(inv) {
       </tr>
       <tr>
         <th rowspan="2">種類</th>
-        <td colspan="2" style="border-right: none !important; border-bottom: none !important; padding: 4px 8px 2px 8px; font-size: 11pt;">
-          <span class="invoice-checkbox">☒</span>發票：&nbsp;&nbsp;
-          <span class="invoice-checkbox">☒</span><strong>有統編，請填統編：${inv.tax_id}</strong>
-        </td>
-        <td style="border-left: none !important; border-bottom: none !important; padding: 4px 8px 2px 8px; font-size: 11pt;">
-          <span class="invoice-checkbox">☐</span>無統編
+        <td colspan="3" style="padding: 4px 8px 2px 8px; font-size: 11pt; border-bottom: none !important;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <span class="invoice-checkbox">☒</span>發票：&nbsp;&nbsp;&nbsp;&nbsp;
+              <span class="invoice-checkbox">☒</span>有統編，請填統編：${inv.tax_id}
+            </div>
+            <div style="margin-right: 48px;">
+              <span class="invoice-checkbox">☐</span>無統編
+            </div>
+          </div>
         </td>
       </tr>
       <tr>
@@ -2817,7 +2983,7 @@ function buildInvoiceDocHtml(inv) {
       <tr>
         <th>收入</th>
         <td colspan="3" class="no-padding">
-          <table class="borderless-grid-table" style="width: 100%; border-collapse: collapse; border: none; margin: 0; font-size: 11pt;">
+          <table class="borderless-grid-table" style="width: 100%; border-collapse: collapse; margin: 0; font-size: 11pt;">
             <colgroup>
               <col style="width: 20%;">
               <col style="width: 20%;">
@@ -2826,47 +2992,47 @@ function buildInvoiceDocHtml(inv) {
               <col style="width: 20%;">
             </colgroup>
             <tr>
-              <td style="border: none !important; padding: 3px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>版稅收入</td>
-              <td style="border: none !important; padding: 3px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>授權收入</td>
-              <td style="border: none !important; padding: 3px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>會員收入</td>
-              <td style="border: none !important; padding: 3px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>專案收入</td>
-              <td style="border: none !important; padding: 3px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>書籍收入</td>
+              <td style="border: none !important; padding: 3px 4px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>版稅收入</td>
+              <td style="border: none !important; padding: 3px 4px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>授權收入</td>
+              <td style="border: none !important; padding: 3px 4px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>會員收入</td>
+              <td style="border: none !important; padding: 3px 4px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>專案收入</td>
+              <td style="border: none !important; padding: 3px 4px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>書籍收入</td>
             </tr>
             <tr>
-              <td style="border: none !important; padding: 3px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>選務計票</td>
-              <td style="border: none !important; padding: 3px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>租金收入</td>
-              <td style="border: none !important; padding: 3px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>排版收入</td>
-              <td style="border: none !important; padding: 3px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>展覽收入</td>
-              <td style="border: none !important; padding: 3px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>研習收入</td>
+              <td style="border: none !important; padding: 3px 4px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>選務計票</td>
+              <td style="border: none !important; padding: 3px 4px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>租金收入</td>
+              <td style="border: none !important; padding: 3px 4px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>排版收入</td>
+              <td style="border: none !important; padding: 3px 4px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>展覽收入</td>
+              <td style="border: none !important; padding: 3px 4px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>研習收入</td>
             </tr>
             <tr>
-              <td style="border: none !important; padding: 3px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>測驗收入</td>
-              <td style="border: none !important; padding: 3px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>換證收入</td>
-              <td style="border: none !important; padding: 3px 2px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>成績複查</td>
-              <td style="border: none !important; padding: 3px 2px; white-space: nowrap;"><span class="invoice-checkbox">☒</span><strong>其他收入</strong></td>
-              <td style="border: none !important; padding: 3px 2px;"></td>
+              <td style="border: none !important; padding: 3px 4px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>測驗收入</td>
+              <td style="border: none !important; padding: 3px 4px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>換證收入</td>
+              <td style="border: none !important; padding: 3px 4px; white-space: nowrap;"><span class="invoice-checkbox">☐</span>成績複查</td>
+              <td style="border: none !important; padding: 3px 4px; white-space: nowrap;"><span class="invoice-checkbox">☒</span>其他收入</td>
+              <td style="border: none !important; padding: 3px 4px;"></td>
             </tr>
           </table>
         </td>
       </tr>
       <tr>
         <th>品名</th>
-        <td colspan="3" style="padding: 4px 8px; font-size: 11pt;">
-          (請詳填品名)<br><strong>${inv.item_name || '線上課程訂閱'}</strong>
+        <td colspan="3" style="padding: 4px 8px; font-size: 11pt; line-height: 1.4;">
+          (請詳填品名)<br>${inv.item_name || '線上課程訂閱'}
         </td>
       </tr>
     </table>
-    <div class="invoice-item-desc" style="font-size: 10pt; margin-top: 3px; margin-bottom: 2px;">
+    <div class="invoice-item-desc" style="margin-bottom: 4px;">
       說明：品名填寫規則，詳見《附件 2_發票收據品名對照表》
     </div>
 
-    <div class="invoice-section-title" style="margin-top: 2px;">3. 入帳資料</div>
+    <div class="invoice-section-title">3. 入帳資料</div>
     <table class="invoice-doc-table">
       <colgroup>
-        <col style="width: 10.5%;">
-        <col style="width: 24.7%;">
-        <col style="width: 4.4%;">
-        <col style="width: 60.4%;">
+        <col style="width: 12%;">
+        <col style="width: 25%;">
+        <col style="width: 4%;">
+        <col style="width: 59%;">
       </colgroup>
       <thead>
         <tr>
@@ -2877,14 +3043,14 @@ function buildInvoiceDocHtml(inv) {
       </thead>
       <tbody>
         <tr>
-          <td rowspan="3" style="text-align: center; vertical-align: middle; font-size: 11pt;">
+          <td rowspan="3" style="text-align: center; vertical-align: middle; font-size: 11pt; white-space: nowrap;">
             <span class="invoice-checkbox">☐</span>已入帳
           </td>
-          <td rowspan="3" style="text-align: center; vertical-align: middle; color: #475569; letter-spacing: 2px; white-space: nowrap; font-size: 11pt;">
-            &nbsp;&nbsp;&nbsp;&nbsp;年&nbsp;&nbsp;&nbsp;&nbsp;月&nbsp;&nbsp;&nbsp;&nbsp;日
+          <td rowspan="3" style="text-align: center; vertical-align: middle; letter-spacing: 4px; white-space: nowrap; font-size: 11pt;">
+            年&nbsp;&nbsp;&nbsp;&nbsp;月&nbsp;&nbsp;&nbsp;&nbsp;日
           </td>
           <td style="text-align: center; font-weight: bold; vertical-align: middle; font-size: 11pt;">1</td>
-          <td style="padding: 4px 8px; line-height: 1.6; white-space: nowrap; font-size: 11pt;">
+          <td style="padding: 4px 8px; line-height: 1.55; font-size: 11pt;">
             <div>
               <span class="invoice-checkbox">☐</span>合庫北&nbsp;&nbsp;
               <span class="invoice-checkbox">☐</span>合庫中&nbsp;&nbsp;
@@ -2893,9 +3059,9 @@ function buildInvoiceDocHtml(inv) {
               <span class="invoice-checkbox">☐</span>合庫 6922
             </div>
             <div style="margin-top: 2px;">
-              <span class="invoice-checkbox" style="font-weight: bold;">☒</span><strong>一銀</strong>&nbsp;&nbsp;
+              <span class="invoice-checkbox">☒</span>一銀&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
               <span class="invoice-checkbox">☐</span>國泰世華&nbsp;&nbsp;
-              <span class="invoice-checkbox">☐</span>現金&nbsp;&nbsp;
+              <span class="invoice-checkbox">☐</span>現金&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
               <span class="invoice-checkbox">☐</span>支票
             </div>
           </td>
@@ -2903,9 +3069,9 @@ function buildInvoiceDocHtml(inv) {
         <tr>
           <td rowspan="2" style="text-align: center; font-weight: bold; vertical-align: middle; font-size: 11pt;">2</td>
           <td style="padding: 4px 8px; line-height: 1.5; white-space: nowrap; font-size: 11pt;">
-            <span class="invoice-checkbox">☐</span>ATM&nbsp;&nbsp;&nbsp;&nbsp;
-            <span class="invoice-checkbox">☐</span>信用卡&nbsp;&nbsp;&nbsp;&nbsp;
-            <span class="invoice-checkbox">☐</span>IBON&nbsp;&nbsp;&nbsp;&nbsp;
+            <span class="invoice-checkbox">☐</span>ATM&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <span class="invoice-checkbox">☐</span>信用卡&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <span class="invoice-checkbox">☐</span>IBON&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             <span class="invoice-checkbox">☐</span>LINE
           </td>
         </tr>
@@ -2915,36 +3081,36 @@ function buildInvoiceDocHtml(inv) {
           </td>
         </tr>
         <tr>
-          <td style="text-align: center; vertical-align: middle; font-weight: bold; font-size: 11pt;">
+          <td style="text-align: center; vertical-align: middle; font-size: 11pt; white-space: nowrap;">
             <span class="invoice-checkbox">☒</span>未入帳
           </td>
-          <td style="text-align: center; font-weight: bold; color: #0f172a; white-space: nowrap; font-size: 11pt;">
-            ${depStr}
+          <td style="text-align: center; font-size: 11pt; white-space: nowrap; letter-spacing: 1px;">
+            ${depDisplay}
           </td>
-          <td colspan="2" style="text-align: left; padding-left: 10px; color: #475569; font-size: 11pt;">
+          <td colspan="2" style="text-align: left; padding-left: 10px; font-size: 11pt;">
             (預計)
           </td>
         </tr>
       </tbody>
     </table>
 
-    <div class="invoice-section-title" style="margin-top: 10px;">4. 簽核</div>
+    <div class="invoice-section-title">4. 簽核</div>
     <table class="invoice-doc-table">
       <colgroup>
         <col style="width: 48%;">
         <col style="width: 52%;">
       </colgroup>
       <tr>
-        <th style="height: 24px;">主管 ②</th>
-        <th>申請人 ①</th>
+        <th style="height: 22px;">主管②</th>
+        <th>申請人①</th>
       </tr>
       <tr>
-        <td style="height: 52px;">&nbsp;</td>
-        <td style="height: 52px;">&nbsp;</td>
+        <td style="height: 48px;">&nbsp;</td>
+        <td style="height: 48px;">&nbsp;</td>
       </tr>
     </table>
 
-    <div class="invoice-section-title" style="margin-top: 10px;">5. 開立</div>
+    <div class="invoice-section-title">5. 開立</div>
     <table class="invoice-doc-table dashed-table">
       <colgroup>
         <col style="width: 15.4%;">
@@ -2955,21 +3121,21 @@ function buildInvoiceDocHtml(inv) {
         <col style="width: 19.2%;">
       </colgroup>
       <tr>
-        <th style="border: 1px dashed #111827 !important; height: 32px; white-space: nowrap;">發票收據號碼</th>
-        <td style="border: 1px dashed #111827 !important;">&nbsp;</td>
-        <th style="border: 1px dashed #111827 !important; white-space: nowrap;">收款確認</th>
-        <td style="border: 1px dashed #111827 !important;">&nbsp;</td>
-        <th style="border: 1px dashed #111827 !important; text-align: center; white-space: nowrap;">會計 / 出納</th>
-        <td style="border: 1px dashed #111827 !important;">&nbsp;</td>
+        <th style="border: 1px dashed #000000 !important; height: 30px; white-space: nowrap;">發票收據號碼</th>
+        <td style="border: 1px dashed #000000 !important;">&nbsp;</td>
+        <th style="border: 1px dashed #000000 !important; white-space: nowrap;">收款確認</th>
+        <td style="border: 1px dashed #000000 !important;">&nbsp;</td>
+        <th style="border: 1px dashed #000000 !important; text-align: center; white-space: nowrap;">會計/出納</th>
+        <td style="border: 1px dashed #000000 !important;">&nbsp;</td>
       </tr>
     </table>
 
-    <div class="invoice-notes" style="margin-top: 14px; font-size: 9.5pt; line-height: 1.7;">
-      <div style="font-weight: bold; margin-bottom: 4px;">注意事項：</div>
-      <div style="margin-bottom: 4px; padding-left: 1.2em; text-indent: -1.2em;">
-        1. 申請流程：經辦 ➔ 主管簽核 ➔ 會計/出納 (開立發票/收據)。原申請單由會計行政部門留存，經辦請自留影本備查。
+    <div class="invoice-notes">
+      <div style="font-weight: bold; margin-bottom: 3px;">注意事項：</div>
+      <div style="margin-bottom: 2px;">
+        1. 申請流程：經辦→主管簽核→會計/出納(開立發票/收據)。原申請單由會計行政部門留存，經辦請自留影本備查。
       </div>
-      <div style="padding-left: 1.2em; text-indent: -1.2em;">
+      <div>
         2. 如需作廢，請務必於開立後次月 5 號前提出申請。
       </div>
     </div>

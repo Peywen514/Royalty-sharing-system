@@ -54,7 +54,7 @@ def init_db():
         price REAL DEFAULT 0,
         teacher_share_rate REAL DEFAULT 0.50,
         production_cost REAL DEFAULT 0,
-        deduction_type TEXT DEFAULT 'per_period',
+        deduction_type TEXT DEFAULT 'cumulative',
         note TEXT,
         FOREIGN KEY (platform_id) REFERENCES platforms(id)
     )
@@ -171,10 +171,13 @@ def init_db():
     c.execute('SELECT COUNT(*) FROM courses')
     if c.fetchone()[0] == 0:
         courses_seed = [
-            ('c1', 'AIＸ數據分析術:從報表到洞察，全面升級你的職場決策力', '104', '侯玉彤', 1288, 0.50, 1069, 'per_period', '扣除平台服務費、課程製作相關費用'),
-            ('c2', '生成式AI全解析:從概念到實戰落地應用', '104', '簡志峰', 1500, 0.50, 0, 'per_period', '扣除平台服務費')
+            ('c1', 'AIＸ數據分析術:從報表到洞察，全面升級你的職場決策力', '104', '侯玉彤', 1288, 0.50, 1069, 'cumulative', '扣除平台服務費、課程製作相關費用'),
+            ('c2', '生成式AI全解析:從概念到實戰落地應用', '104', '簡志峰', 1500, 0.50, 0, 'cumulative', '扣除平台服務費')
         ]
         c.executemany('INSERT INTO courses VALUES (?,?,?,?,?,?,?,?,?)', courses_seed)
+    else:
+        # 將舊有預設 per_period 平滑升級為 cumulative (累計扣抵，扣完即止)
+        c.execute("UPDATE courses SET deduction_type = 'cumulative' WHERE deduction_type = 'per_period' OR deduction_type IS NULL")
 
     conn.commit()
     conn.close()
@@ -238,7 +241,7 @@ def save_course(course_data):
     price = float(course_data.get('price') or course_data.get('course_price') or 0)
     share_rate = float(course_data.get('teacher_share_rate', 0.5))
     prod_cost = float(course_data.get('production_cost', 0))
-    ded_type = course_data.get('deduction_type', 'per_period')
+    ded_type = course_data.get('deduction_type', 'cumulative')
     note = course_data.get('note', '')
 
     c.execute('''

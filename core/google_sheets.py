@@ -278,44 +278,59 @@ function doPost(e) {
     var themeColor = isPPA ? "#4338ca" : "#1e3a8a"; // PPA 皇家靛紫 / 104 深海軍藍
     ensureHeaderAndStyle(sheet, headers, themeColor);
 
-    // 寫入明細資料列
+    // 寫入明細資料列（支援就地更新相同期別與課程，避免重複累贅）
     var rows = data.rows || [];
+    var lastRow = sheet.getLastRow();
+    var existingKeys = {};
+    if (lastRow > 1) {
+      var existVals = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+      for (var k = 0; k < existVals.length; k++) {
+        var key = String(existVals[k][0] || "").trim() + "_" + String(existVals[k][2] || "").trim();
+        existingKeys[key] = k + 2; // 1-based row index in sheet
+      }
+    }
+
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
-      if (isPPA) {
-        sheet.appendRow([
-          r["期別"] || "",
-          r["平台"] || "PressPlay Academy",
-          r["課程名稱"] || "",
-          r["定價"] || 0,
-          r["銷售數量"] || 0,
-          r["消費總額(實付)"] || 0,
-          r["金流手續費(2.25%)"] || 0,
-          r["PPA平台服務費(20%)"] || 0,
-          r["我方分攤行銷費"] || 0,
-          r["CSF銷售所得(未稅)"] || 0,
-          r["發票請款總額(含稅)"] || 0,
-          r["發票抬頭"] || "瑞奧股份有限公司",
-          r["統一編號"] || "54225569",
-          r["預計入帳日期"] || "",
-          r["更新時間"] || Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd HH:mm:ss")
-        ]);
+      var rowKey = String(r["期別"] || "").trim() + "_" + String(r["課程名稱"] || "").trim();
+      var targetRowIdx = existingKeys[rowKey];
+      var rowData = isPPA ? [
+        r["期別"] || "",
+        r["平台"] || "PressPlay Academy",
+        r["課程名稱"] || "",
+        r["定價"] || 0,
+        r["銷售數量"] || 0,
+        r["消費總額(實付)"] || 0,
+        r["金流手續費(2.25%)"] || 0,
+        r["PPA平台服務費(20%)"] || 0,
+        r["我方分攤行銷費"] || 0,
+        r["CSF銷售所得(未稅)"] || 0,
+        r["發票請款總額(含稅)"] || 0,
+        r["發票抬頭"] || "瑞奧股份有限公司",
+        r["統一編號"] || "54225569",
+        r["預計入帳日期"] || "",
+        r["更新時間"] || Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd HH:mm:ss")
+      ] : [
+        r["期別"] || "",
+        r["平台"] || "104人力銀行",
+        r["課程名稱"] || "",
+        r["定價"] || 0,
+        r["銷售數量"] || 0,
+        r["平台淨額(80%)"] || 0,
+        r["未稅金額"] || 0,
+        r["代扣稅額"] || 0,
+        r["應收請款總額(含稅)"] || 0,
+        r["發票抬頭"] || "一零四資訊科技股份有限公司",
+        r["統一編號"] || "84598349",
+        r["預計入帳日期"] || "",
+        r["更新時間"] || Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd HH:mm:ss")
+      ];
+
+      if (targetRowIdx) {
+        sheet.getRange(targetRowIdx, 1, 1, rowData.length).setValues([rowData]);
       } else {
-        sheet.appendRow([
-          r["期別"] || "",
-          r["平台"] || "104人力銀行",
-          r["課程名稱"] || "",
-          r["定價"] || 0,
-          r["銷售數量"] || 0,
-          r["平台淨額(80%)"] || 0,
-          r["未稅金額"] || 0,
-          r["代扣稅額"] || 0,
-          r["應收請款總額(含稅)"] || 0,
-          r["發票抬頭"] || "一零四資訊科技股份有限公司",
-          r["統一編號"] || "84598349",
-          r["預計入帳日期"] || "",
-          r["更新時間"] || Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd HH:mm:ss")
-        ]);
+        sheet.appendRow(rowData);
+        existingKeys[rowKey] = sheet.getLastRow();
       }
     }
 
@@ -484,8 +499,8 @@ function doPost(e) {
       // 確保表頭存在並進行高雅視覺美化
       ensureHeaderAndStyle(sheet, TEACHER_HEADERS, themeColor);
 
-      // 寫入該講師的版稅明細
-      sheet.appendRow([
+      // 寫入或就地更新該講師的版稅明細（避免同月份重複寫入）
+      var tRowData = [
         r["期別"] || "",
         teacherName,
         r["課程名稱"] || "",
@@ -498,7 +513,25 @@ function doPost(e) {
         r["本期應付講師版稅"] || 0,
         r["備註"] || "",
         r["更新時間"] || Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM-dd HH:mm:ss")
-      ]);
+      ];
+
+      var lastRow = sheet.getLastRow();
+      var updated = false;
+      if (lastRow > 1) {
+        var existingVals = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+        for (var k = 0; k < existingVals.length; k++) {
+          var pVal = String(existingVals[k][0] || "").trim();
+          var cVal = String(existingVals[k][2] || "").trim();
+          if (pVal === String(r["期別"] || "").trim() && cVal === String(r["課程名稱"] || "").trim()) {
+            sheet.getRange(k + 2, 1, 1, tRowData.length).setValues([tRowData]);
+            updated = true;
+            break;
+          }
+        }
+      }
+      if (!updated) {
+        sheet.appendRow(tRowData);
+      }
 
       formatDataRows(sheet, TEACHER_HEADERS.length);
       processedSheets[teacherName] = (processedSheets[teacherName] || 0) + 1;

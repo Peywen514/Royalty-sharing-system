@@ -127,45 +127,16 @@ class InvoiceDocGenerator:
         d_str = f"{d_val:02d}" if d_val else "03"
         
         if cell.paragraphs and cell.paragraphs[0].runs:
-            p = cell.paragraphs[0]
-            runs = p.runs
-            
-            idx_year, idx_month, idx_day = -1, -1, -1
-            for i, r in enumerate(runs):
-                if "年" in r.text and idx_year == -1:
-                    idx_year = i
-                elif "月" in r.text and idx_month == -1:
-                    idx_month = i
-                elif "日" in r.text and idx_day == -1:
-                    idx_day = i
-            
-            if idx_year != -1 and idx_month != -1 and idx_day != -1:
-                # 1. 年份：年 (idx_year) 之前的 runs
-                year_runs = [r for i, r in enumerate(runs) if i < idx_year and (r.text.strip() or i >= 4)]
-                if len(year_runs) >= 2:
-                    year_runs[0].text = y_str[:2]
-                    year_runs[1].text = y_str[2:] if len(y_str) > 2 else ""
-                    for r in year_runs[2:]:
-                        r.text = ""
-                elif year_runs:
-                    year_runs[0].text = y_str
-                
-                # 2. 月份：年 (idx_year) 與 月 (idx_month) 之間的 runs
-                month_runs = [r for i, r in enumerate(runs) if idx_year < i < idx_month]
-                if len(month_runs) >= 2:
-                    month_runs[0].text = m_str[0]
-                    month_runs[1].text = m_str[1]
-                    for r in month_runs[2:]:
-                        r.text = ""
-                elif month_runs:
-                    month_runs[0].text = m_str
-                
-                # 3. 日期：月 (idx_month) 與 日 (idx_day) 之間的 runs
-                day_runs = [r for i, r in enumerate(runs) if idx_month < i < idx_day]
-                if day_runs:
-                    day_runs[0].text = d_str
-                    for r in day_runs[1:]:
-                        r.text = ""
+            runs = cell.paragraphs[0].runs
+            t_runs = [r for r in runs if len(r._element.xpath('./w:t')) > 0]
+            # t_runs in the template correspond to:
+            # [0]: '11', [1]: '5', [2]: '年', [3]: '0', [4]: '9', [5]: '月', [6]: '03', [7]: '日'
+            if len(t_runs) >= 8:
+                t_runs[0].text = y_str[:2]
+                t_runs[1].text = y_str[2:]
+                t_runs[3].text = m_str[0]
+                t_runs[4].text = m_str[1]
+                t_runs[6].text = d_str
             else:
                 self._set_cell_text(cell, f"{y_str}年{m_str}月{d_str}日")
         else:
@@ -219,16 +190,35 @@ class InvoiceDocGenerator:
     def _update_expected_deposit_date(self, cell, date_str):
         """更新預計入帳日期，保留 '(預計)' 標籤與原字型"""
         clean_date = date_str.replace("(預計)", "").strip()
+        parsed_str, y, m, d = self.parse_roc_date(clean_date)
+        y_str = str(y) if y else "115"
+        m_str = f"{m:02d}" if m else "10"
+        d_str = f"{d:02d}" if d else "31"
+
         if cell.paragraphs and cell.paragraphs[0].runs:
             runs = cell.paragraphs[0].runs
-            if len(runs) >= 5:
-                runs[4].text = clean_date
+            # In the template:
+            # runs[0]='(', runs[1]='預計', runs[2]=')', runs[3]=' ', runs[4]='11', runs[5]='5', runs[6]='年',
+            # runs[7]='10', runs[8]='月', runs[9]='3', runs[10]='1', runs[11]='日'
+            if len(runs) >= 12:
+                runs[4].text = y_str[:2]
+                runs[5].text = y_str[2:]
+                runs[6].text = "年"
+                runs[7].text = m_str
+                runs[8].text = "月"
+                runs[9].text = d_str[0]
+                runs[10].text = d_str[1]
+                runs[11].text = "日"
+                for r in runs[12:]:
+                    r.text = ""
+            elif len(runs) >= 5:
+                runs[4].text = f"{y_str}年{m_str}月{d_str}日"
                 for r in runs[5:]:
                     r.text = ""
             else:
-                cell.paragraphs[0].text = f"(預計) {clean_date}"
+                cell.paragraphs[0].text = f"(預計) {y_str}年{m_str}月{d_str}日"
         else:
-            self._set_cell_text(cell, f"(預計) {clean_date}")
+            self._set_cell_text(cell, f"(預計) {y_str}年{m_str}月{d_str}日")
 
     def generate(self, title, tax_id, amount, period_roc_year=115, period_month=8, 
                  apply_date=None, expected_deposit_date=None, item_name=None, output_dir=None, custom_filename=None):
